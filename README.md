@@ -49,30 +49,35 @@ with Record(load_path="CMIP6_data/tas/MODELS_filtered/ssp585") as r:
                                                  "year_avg/Projections",
                                                  "year_avg/Historical"])
 
-    ops = list()
-    output_node = Node("outputs", "iceshelves")
+    ops = []
+    output_node = Node("outputs", "CMIP6_data/tas/MODELS_filtered/ssp585/iceshelves")
     r.add_node(output_node)
 
     for n in input_nodes:
         for shelf in shelves:
+
+            # create output path
             path_parts = n.get_root_path().split("/")[-1:]
-
             path = f"iceshelves/{shelf["name"]}/{path_parts[1]}/{path_parts[0]}"
+            
+            # create output node
             name = f"{shelf["name"]}_{path_parts[1]}_{path_parts[0]}"
-
-            output_node = Node(name, path)
-            output_node.add_child(output_node)
+            shelf_output_node = Node(name, path)
+            output_node.add_child(shelf_output_node)
 
             # each command maps to an output node
+            # built-in `input_basename` is name of input file
             c = Operator("sellatlonbox",
                         shelf["coords"],
-                        output=output_node,
+                        output=shelf_output_node,
                         output_format="{input_basename}" + f".{shelf["name"]}.nc"
                 )
 
             ops.append(c)
 
     # apply operator to all leaf nodes with files
+    # will create all required directories first
+    # and process all CDO operations in parallel
     apply(nodes, ops)
 
 ```
