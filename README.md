@@ -67,7 +67,7 @@ with Record(load_path="CMIP6_data/tas/MODELS_filtered/ssp585") as r:
 
             # each command maps to an output node
             # built-in `input_basename` is name of input file
-            c = Operator("sellatlonbox",
+            c = Operator("sellonlatbox",
                         shelf["coords"],
                         output=shelf_output_node,
                         output_format="{input_basename}" + f".{shelf["name"]}.nc"
