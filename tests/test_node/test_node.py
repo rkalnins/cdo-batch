@@ -61,7 +61,7 @@ def test_path_split():
 
 
 def test_node_tree_create():
-    n = Node("output", "/path/to/output")
+    n = Node("output", "path/to/output")
     a = Node("out_a", "samples/a")
     b = Node("out_b", "samples/b")
     c = Node("sub_a_out_c", "c")
@@ -70,10 +70,10 @@ def test_node_tree_create():
     n.add_child(b)
     a.add_child(c)
 
-    assert c.get_root_path() == "samples/a/c"
-    assert b.get_root_path() == "samples/b"
-    assert a.get_root_path() == "samples/a"
-    assert n.get_root_path() == ""
+    assert c.get_root_path() == "path/to/output/samples/a/c"
+    assert b.get_root_path() == "path/to/output/samples/b"
+    assert a.get_root_path() == "path/to/output/samples/a"
+    assert n.get_root_path() == "path/to/output"
 
 
 def test_node_serialization_tree():

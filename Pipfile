@@ -6,6 +6,9 @@ name = "pypi"
 [packages]
 cdo = "*"
 cdobatch = {editable = true, path = "."}
+netcdf4 = "*"
+scipy = "*"
+xarray = "*"
 
 [dev-packages]
 black = "*"

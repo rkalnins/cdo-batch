@@ -35,7 +35,7 @@ class Node:
 
         # this is the root node
         if self.parent is None:
-            return ""
+            return self.path
 
         return os.path.join(self.parent.get_root_path(), self.path)
 
