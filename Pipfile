@@ -11,6 +11,7 @@ cdobatch = {editable = true, path = "."}
 black = "*"
 pytest = "*"
 coverage = "*"
+pylint = "*"
 
 [requires]
 python_version = "3.9"

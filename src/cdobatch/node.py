@@ -12,22 +12,24 @@ class Node:
     def __init__(self, name, path, files=None):
         self.name = name
         self.path = path
-        self.children = list()
+        self.children = []
         self.parent = None
 
         if files is None:
-            self.files = list()
+            self.files = []
         else:
             self.files = files
 
     def find_node(self, name):
         if name == self.name:
             return self
-        else:
-            for c in self.children:
-                n = c.find_node(name)
-                if n is not None:
-                    return n
+
+        for c in self.children:
+            n = c.find_node(name)
+            if n is not None:
+                return n
+
+        return None
 
     def get_root_path(self):
 
@@ -63,17 +65,19 @@ class Node:
         i = 0
         new_nodes = []
         for p in paths:
-            matching_paths = list(filter(lambda f: f.startswith(p), self.files))
-            self.files = list(filter(lambda f: f not in matching_paths, self.files))
+            matching_paths = list(
+                filter(lambda f, prefix=p: f.startswith(prefix), self.files)
+            )
+            self.files = list(
+                filter(lambda f, found=matching_paths: f not in found, self.files)
+            )
 
             if node_names is None:
                 name = self.name + p
             else:
                 name = node_names[i]
 
-            new_relative_paths = [
-                os.path.relpath(mp, p) for mp in matching_paths
-            ]
+            new_relative_paths = [os.path.relpath(mp, p) for mp in matching_paths]
             n = Node(name, p, new_relative_paths)
             self.add_child(n)
             new_nodes.append(n)

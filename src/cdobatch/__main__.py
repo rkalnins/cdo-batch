@@ -1,3 +1,3 @@
-import cli
+import cdobatch.console as console
 
-cli.console.main()
+console.main()

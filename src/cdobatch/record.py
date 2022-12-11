@@ -1,10 +1,6 @@
 from __future__ import annotations
 import json
 import os
-import cdo
-
-
-from .log import log
 from .node import Node
 
 
@@ -16,7 +12,7 @@ class Record:
     def __init__(self, path=None, index_name="dataset.json"):
         self.path = path
         self.index_name = index_name
-        self.root_nodes = list()
+        self.root_nodes = []
 
     def __enter__(self):
         # attempt to open index, if given directory, index it
@@ -47,7 +43,7 @@ class Record:
         all_paths = []
 
         # get all files
-        for root, dirs, files in os.walk(self.path):
+        for root, _, files in os.walk(self.path):
             for file in files:
                 if file.endswith(".nc"):
                     all_paths.append(
@@ -65,7 +61,7 @@ class Record:
                 self.root_nodes.append(Node.from_dict(n_raw))
 
     def dump(self):
-        dump_contents = dict()
+        dump_contents = {}
         dump_contents["nodes"] = [n.to_dict() for n in self.root_nodes]
 
         with open(self.path, "w+") as f:
