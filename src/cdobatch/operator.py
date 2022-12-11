@@ -1,5 +1,8 @@
 from __future__ import annotations
-from node import Node
+
+import os
+
+from .node import Node
 
 
 class Operator:
@@ -10,7 +13,7 @@ class Operator:
     output_format: str
     options: str
 
-    chain: Command
+    chain: Operator
 
     def __init__(
         self,
@@ -27,7 +30,7 @@ class Operator:
         self.output_node = output_node
 
         if opvar is None:
-            self.opvar = dict()
+            self.opvar = {}
         else:
             self.opvar = opvar
 
@@ -40,12 +43,12 @@ class Operator:
         self.options = options
 
     def get_chain(self):
-        if output_node is not None:
+        if self.output_node is not None:
             # at the head of the chain, do not repeat current op/param
             return self.chain.get_chain()
-        else:
-            # last in chain is first operator applied
-            return self.chain.get_chain() + f" -{self.operator},{self.parameter}"
+
+        # last in chain is first operator applied
+        return self.chain.get_chain() + f" -{self.operator},{self.parameter}"
 
     def get_output_name(self, node):
         # TODO: provide more options for renaming
@@ -56,7 +59,7 @@ class Operator:
         # get file name of output
         input_name = os.path.splitext(os.path.basename(node.get_root_path()))[0]
 
-        return path + output_format.format(input_basename=input_name, **self.opvar)
+        return path + self.output_format.format(input_basename=input_name, **self.opvar)
 
     def run(self, cdo, node):
         cdo_op_name = f"-{self.operator}"
@@ -69,7 +72,7 @@ class Operator:
             # no chaining
             cdo_input = node.get_root_path()
 
-        cdo_output = self.get_output_name()
+        cdo_output = self.get_output_name(node)
 
         cdo_op = getattr(cdo, cdo_op_name)
         cdo_options = self.options
@@ -79,9 +82,11 @@ class Operator:
             return cdo.cdo_op(
                 cdo_param, input=cdo_input, output=cdo_output, options=cdo_options
             )
-        elif cdo_param:
+
+        if cdo_param:
             return cdo.cdo_op(cdo_param, input=cdo_input, options=cdo_options)
-        elif cdo_output:
+
+        if cdo_output:
             return cdo.cdo_op(input=cdo_input, output=cdo_output, options=cdo_options)
-        else:
-            return cdo.cdo_op(input=cdo_input, options=cdo_options)
+
+        return cdo.cdo_op(input=cdo_input, options=cdo_options)

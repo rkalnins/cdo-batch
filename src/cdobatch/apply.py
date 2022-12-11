@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-from node import Node
-from operator import Operator
-
-
-cdo = Cdo()
+from .operator import Operator
+from .node import Node
 
 
 def apply(nodes, ops, dry_run=False):
