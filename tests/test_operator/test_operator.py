@@ -27,10 +27,13 @@ def test_operator_output_naming():
     )
 
     # get output name for first file
-    out_file_name = op.get_output_name(in_n, files[0])
+    out_file_name = op.get_output_name(files[0])
     assert out_file_name == "path/to/output/a.4.nc"
-    out_file_name = op.get_output_name(in_n, files[1])
+    out_file_name = op.get_output_name(files[1])
     assert out_file_name == "path/to/output/b.4.nc"
+
+    op = Operator("test_op")
+    assert op.get_output_name(files[0]) == None
 
 
 def test_operator_run_single_op_dry():
@@ -46,7 +49,8 @@ def test_operator_run_single_op_dry():
         "sellonlat", "p1,p2", output_node=out_n, output_format="{input_basename}-out.nc"
     )
 
-    cmds = op.run(cdo, in_n.find_node("a_files"), dry_run=True)
+    op.setup(in_n.find_node("a_files"))
+    cmds = op.run(cdo, dry_run=True)
     print(cmds)
 
     assert cmds == [

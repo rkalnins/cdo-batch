@@ -5,6 +5,34 @@ import os
 from .node import Node
 
 
+class OperatorRunConfiguration:
+    cdo_operator: str
+    cdo_parameters: str
+    cdo_inputs: list
+    cdo_outputs: list
+    cdo_options: str
+
+    def __init__(
+        self,
+        cdo_operator,
+        cdo_parameters=None,
+        cdo_inputs=None,
+        cdo_outputs=None,
+        cdo_options=None,
+    ):
+        self.cdo_operator = cdo_operator
+        self.cdo_parameters = cdo_parameters
+        self.cdo_inputs = cdo_inputs
+        self.cdo_outputs = cdo_outputs
+        self.cdo_options = cdo_options
+
+        if self.cdo_inputs is None:
+            self.cdo_inputs = []
+
+        if self.cdo_outputs is None:
+            self.cdo_outputs = []
+
+
 class Operator:
     operator: str
     parameter: str
@@ -14,6 +42,8 @@ class Operator:
     options: str
 
     chain: Operator
+
+    run_config: OperatorRunConfiguration
 
     def __init__(
         self,
@@ -42,6 +72,8 @@ class Operator:
         self.chain = chain
         self.options = options
 
+        self.run_config = None
+
     def get_chain(self):
         if self.chain is None:
             return ""
@@ -50,7 +82,10 @@ class Operator:
         cmd = self.chain.get_chain() + f" -{self.operator},{self.parameter}"
         return cmd.strip()
 
-    def get_output_name(self, node, file_path):
+    def get_output_name(self, file_path):
+        if self.output_node is None:
+            return None
+
         # TODO: provide more options for renaming
 
         # get destination directory (no file name)
@@ -63,23 +98,20 @@ class Operator:
             path, self.output_format.format(input_basename=input_name, **self.opvar)
         )
 
-    def run(self, cdo, node, dry_run=False):
-        cdo_op_name = f"-{self.operator}"
-        cdo_param = self.parameter.strip()
-
-        cdo_op = getattr(cdo, self.operator)
-
+    def setup(self, node):
         if self.options is None:
             cdo_options = ""
         else:
             cdo_options = self.options
 
-        results = []
+        self.run_config = OperatorRunConfiguration(
+            f"-{self.operator}",
+            cdo_parameters=self.parameter.strip(),
+            cdo_options=cdo_options,
+        )
 
         for f in node.files:
-            # prepare input file
             input_file = os.path.join(node.get_root_path(), f)
-
             if self.chain is None:
                 # operating chaining provided with inputs
                 cdo_input = f"{self.get_chain()} {input_file}".strip()
@@ -88,33 +120,54 @@ class Operator:
                 cdo_input = input_file.strip()
 
             # prepare output file
-            cdo_output = self.get_output_name(node, f)
+            cdo_output = self.get_output_name(f)
 
-            if dry_run:
-                results.append(
-                    f"cdo {cdo_op_name},{cdo_param} {cdo_input} {cdo_output} {cdo_options}".strip()
-                )
+            # prepare input file
+            self.run_config.cdo_inputs.append(cdo_input)
+            self.run_config.cdo_outputs.append(cdo_output)
+
+    def preprocess(self):
+        # TODO: does cdo create output directories?
+        # TODO: create all directories required
+        pass
+
+    def run(self, cdo, dry_run=False):
+
+        cdo_op = getattr(cdo, self.operator)
+        results = []
+
+        for i in range(len(self.run_config.cdo_outputs)):
+            op_name = self.run_config.cdo_operator
+            op_params = self.run_config.cdo_parameters
+            in_path_i = self.run_config.cdo_inputs[i]
+            out_path_i = self.run_config.cdo_outputs[i]
+            op_options = self.run_config.cdo_options
 
             # TODO: figure out how cdo works better to clean this up
-            elif cdo_param and cdo_output:
+            if dry_run:
+                results.append(
+                    f"cdo {op_name},{op_params} {in_path_i} {out_path_i} {op_options}".strip()
+                )
+
+            elif op_params is not None and out_path_i is not None:
                 results.append(
                     cdo.cdo_op(
-                        cdo_param,
-                        input=cdo_input,
-                        output=cdo_output,
-                        options=cdo_options,
+                        op_params,
+                        input=in_path_i,
+                        output=out_path_i,
+                        options=op_options,
                     )
                 )
 
-            elif cdo_param:
+            elif op_params is not None:
                 results.append(
-                    cdo.cdo_op(cdo_param, input=cdo_input, options=cdo_options)
+                    cdo.cdo_op(op_params, input=in_path_i, options=op_options)
                 )
-            elif cdo_output:
+            elif out_path_i is not None:
                 results.append(
-                    cdo.cdo_op(input=cdo_input, output=cdo_output, options=cdo_options)
+                    cdo.cdo_op(input=in_path_i, output=out_path_i, options=op_options)
                 )
             else:
-                results.append(cdo.cdo_op(input=cdo_input, options=cdo_options))
+                results.append(cdo.cdo_op(input=in_path_i, options=op_options))
 
         return results
