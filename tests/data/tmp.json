@@ -1,0 +1,16 @@
+{
+  "nodes": [
+    {
+      "name": "root",
+      "path": "tests/data/",
+      "files": [
+        "a3.nc",
+        "a2.nc",
+        "a1.nc",
+        "s2.nc",
+        "s1.nc"
+      ],
+      "children": []
+    }
+  ]
+}

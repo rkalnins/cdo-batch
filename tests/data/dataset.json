@@ -1,0 +1,36 @@
+{
+  "nodes": [
+    {
+      "name": "root",
+      "path": "",
+      "files": [],
+      "children": [
+        {
+          "name": "node_a",
+          "path": "a",
+          "files": [
+            "a1.nc",
+            "a2.nc",
+            "a2.c"
+          ],
+          "children": []
+        },
+        {
+          "name": "node_b_out",
+          "path": "b/output",
+          "files": [],
+          "children": []
+        },
+        {
+          "name": "node_b",
+          "path": "b/samples",
+          "files": [
+            "s1.nc",
+            "s2.nc"
+          ],
+          "children": []
+        }
+      ]
+    }
+  ]
+}

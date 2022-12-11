@@ -1,0 +1,62 @@
+[project]
+name = "cdobatch"
+version = "0.0.0"
+description = "batching tool for climate data operations"
+authors = [
+    {name = "Roberts Kalnins", email="rkalnins@umich.edu"},
+]
+license = {file = "LICENSE"}
+readme = "README.md"
+requires-python = ">=3.7"
+
+dependencies = [
+    "cdo>=1.5.7",
+]
+
+[project.scripts]
+cdo-batch = "cdobatch.console:main"
+
+[project.optional-dependencies]
+dev = [
+    "black>=22.10.0",
+]
+
+[project.urls]
+homepage = "https://github.com/rkalnins/climate-tools"
+documentation = "https://github.com/rkalnins/climate-tools"
+repository = "https://github.com/rkalnins/climate-tools"
+
+[build-system]
+requires = [
+    "setuptools>=57.0.0",
+]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 88
+target_version = ['py37']
+include = '\.pyi?$'
+exclude = '''
+(
+  /(
+      \.eggs         # exclude a few common directories in the
+    | \.git          # root of the project
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | \.venv
+    | _build
+    | buck-out
+    | build
+    | dist
+  )/
+  | foo.py           # also separately exclude a file named foo.py in
+                     # the root of the project
+)
+'''
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
