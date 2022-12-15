@@ -1,4 +1,7 @@
+import os
+
 from cdo import *
+
 
 from cdobatch.operator import Operator
 from cdobatch.node import Node
@@ -33,7 +36,7 @@ def test_operator_output_naming():
     assert out_file_name == "path/to/output/b.4.nc"
 
     op = Operator("test_op")
-    assert op.get_output_name(files[0]) == None
+    assert op.get_output_name(files[0]) == ""
 
 
 def test_operator_run_single_op_dry():
@@ -57,3 +60,34 @@ def test_operator_run_single_op_dry():
         "cdo -sellonlat,p1,p2 a/in/a2.nc out/a2-out.nc",
         "cdo -sellonlat,p1,p2 a/in/a3.nc out/a3-out.nc",
     ]
+
+def test_operator_run_no_output_dry():
+    cdo = Cdo()
+    files = ["a1.nc", "a2.nc", "a3.nc"]
+
+    in_n = Node("root", "")
+    in_n.add_child(Node("a_files", "a/in", files=files))
+
+    op = Operator("info")
+
+    op.setup(in_n.find_node("a_files"))
+    cmds = op.run(cdo, dry_run=True)
+    assert cmds == [
+            "cdo -info a/in/a1.nc",
+            "cdo -info a/in/a2.nc",
+            "cdo -info a/in/a3.nc",
+    ]
+
+def test_operator_run_no_output():
+    cdo = Cdo()
+    files = ["a1.nc", "a2.nc", "a3.nc"]
+
+    in_n = Node("root", "tests/data")
+    in_n.add_child(Node("a_files", "a", files=files))
+
+    op = Operator("info")
+
+    op.setup(in_n.find_node("a_files"))
+    info = op.run(cdo)
+
+    assert len(info) == len(files)

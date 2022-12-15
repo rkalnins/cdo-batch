@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from pathos.pools import ProcessPool 
 
 from .node import Node
 
@@ -48,16 +49,19 @@ class Operator:
     def __init__(
         self,
         operator,
-        parameter=None,
+        parameter="",
         output_node=None,
         opvar=None,
-        output_format=None,
+        output_format="",
         chain=None,
-        options=None,
+        options="",
     ):
         self.operator = operator
         self.parameter = parameter
         self.output_node = output_node
+
+        if self.parameter != "":
+            self.parameter = "," + self.parameter
 
         if opvar is None:
             self.opvar = {}
@@ -79,12 +83,12 @@ class Operator:
             return ""
 
         # last in chain is first operator applied
-        cmd = self.chain.get_chain() + f" -{self.operator},{self.parameter}"
+        cmd = self.chain.get_chain() + f" -{self.operator}{self.parameter}"
         return cmd.strip()
 
     def get_output_name(self, file_path):
         if self.output_node is None:
-            return None
+            return ""
 
         # TODO: provide more options for renaming
 
@@ -109,8 +113,10 @@ class Operator:
             cdo_parameters=self.parameter.strip(),
             cdo_options=cdo_options,
         )
-        
-        print(f"node {node.name} [{node.get_root_path()}] maps:")
+       
+        if self.output_node is not None:
+            print(f"node {node.name} [{node.get_root_path()}] maps:")
+
         for f in node.files:
             input_file = os.path.join(node.get_root_path(), f)
             if self.chain is None:
@@ -119,24 +125,23 @@ class Operator:
             else:
                 # no chaining
                 cdo_input = input_file.strip()
-
+            
             # prepare output file
             cdo_output = self.get_output_name(f)
 
-            print(f"\t{input_file.strip()} -> {cdo_output}")
+            if cdo_output != "":
+                print(f"\t{input_file.strip()} -> {cdo_output}")
 
             # prepare input file
-            self.run_config.cdo_inputs.append(cdo_input)
             self.run_config.cdo_outputs.append(cdo_output)
+            self.run_config.cdo_inputs.append(cdo_input)
 
     def preprocess(self):
         # TODO: does cdo create output directories?
         # TODO: create all directories required
         pass
 
-    def run(self, cdo, dry_run=False):
-
-        cdo_op = getattr(cdo, self.operator)
+    def run_dry(self):
         results = []
 
         for i in range(len(self.run_config.cdo_outputs)):
@@ -146,31 +151,57 @@ class Operator:
             out_path_i = self.run_config.cdo_outputs[i]
             op_options = self.run_config.cdo_options
 
-            # TODO: figure out how cdo works better to clean this up
-            if dry_run:
-                results.append(
-                    f"cdo {op_name},{op_params} {in_path_i} {out_path_i} {op_options}".strip()
-                )
-
-            elif op_params is not None and out_path_i is not None:
-                results.append(
-                    cdo.cdo_op(
-                        op_params,
-                        input=in_path_i,
-                        output=out_path_i,
-                        options=op_options,
-                    )
-                )
-
-            elif op_params is not None:
-                results.append(
-                    cdo.cdo_op(op_params, input=in_path_i, options=op_options)
-                )
-            elif out_path_i is not None:
-                results.append(
-                    cdo.cdo_op(input=in_path_i, output=out_path_i, options=op_options)
-                )
-            else:
-                results.append(cdo.cdo_op(input=in_path_i, options=op_options))
+            results.append(
+                f"cdo {op_name}{op_params} {in_path_i} {out_path_i} {op_options}".strip()
+            )
 
         return results
+
+    @staticmethod
+    def parallel_op(cdo_func, cdo_args, cdo_kwargs):
+        print(cdo_args, cdo_kwargs)
+        #cdo_func(*cdo_args, **cdo_kwargs) 
+
+    
+
+    def run_real(self, cdo):
+        cdo_op = getattr(cdo, self.operator)
+        pool = ProcessPool(nodes=10)
+        results = []
+        
+        count = len(self.run_config.cdo_inputs)
+        assert count == len(self.run_config.cdo_outputs)
+        
+        params = [self.run_config.cdo_parameters] * count
+        options = [self.run_config.cdo_options] * count
+        
+        ops = [cdo_op] * count
+        cdo_args = []
+        cdo_kwargs = []
+        for i in range(count):
+            cdo_args.append([])
+            cdo_kwargs.append({})
+
+            if self.run_config.cdo_parameters != "":
+                cdo_args[i].append(self.run_config.cdo_parameters)
+
+            if self.run_config.cdo_options != "":
+                cdo_kwargs[i]["options"] = self.run_config.cdo_options
+
+            if self.run_config.cdo_outputs[i] != "":
+                cdo_kwargs[i]["output"] = self.run_config.cdo_outputs[i]
+
+            if self.run_config.cdo_inputs[i] != "":
+                cdo_kwargs[i]["input"] = self.run_config.cdo_inputs[i]
+
+
+        for i in range(count):
+            results.append(ops[i](*cdo_args[i], **cdo_kwargs[i]))
+
+        return results
+        
+    def run(self, cdo, dry_run=False):
+        if dry_run:
+            return self.run_dry()
+
+        return self.run_real(cdo)
