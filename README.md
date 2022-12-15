@@ -64,13 +64,8 @@ with Record(load_path="dataset.json") as r:
     op = Operator("sellonlatbox" "100,280,-50,50", output_node=output)
 
     input_node = r.get_node("dataset_full")
-    apply(input_node, op)
-```
-
-Print commands that would be run instead of applying changes
-
-```python
-apply(node, dry_run=True)
+    op.setup(input_node)
+    op.run()
 ```
 
 Apply an operator with variable parameters to a collection of files from a dataset and remap output to a different file structure and change the base file name.
@@ -105,19 +100,15 @@ with Record(load_path="CMIP6_data/tas/MODELS_filtered/ssp585") as r:
 
             # each command maps to an output node
             # built-in `input_basename` is name of input file
-            c = Operator(
+            op = Operator(
                     "sellonlatbox",
                     shelf["coords"],
                     output=shelf_output_node,
                     output_format="{input_basename}" + f".{shelf["name"]}.nc"
-                )
+            )
 
-            ops[n.name].append(c)
-
-    # apply operator to all leaf nodes with files
-    # will create all required directories first
-    # and process all CDO operations in parallel
-    apply(nodes, ops)
+            op.setup(n)
+            op.run()
 
 ```
 
