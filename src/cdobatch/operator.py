@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from pathos.pools import ProcessPool 
+from pathos.pools import ProcessPool
 
 from .node import Node
 
@@ -113,7 +113,7 @@ class Operator:
             cdo_parameters=self.parameter.strip(),
             cdo_options=cdo_options,
         )
-       
+
         if self.output_node is not None:
             print(f"node {node.name} [{node.get_root_path()}] maps:")
 
@@ -125,7 +125,7 @@ class Operator:
             else:
                 # no chaining
                 cdo_input = input_file.strip()
-            
+
             # prepare output file
             cdo_output = self.get_output_name(f)
 
@@ -160,21 +160,19 @@ class Operator:
     @staticmethod
     def parallel_op(cdo_func, cdo_args, cdo_kwargs):
         print(cdo_args, cdo_kwargs)
-        #cdo_func(*cdo_args, **cdo_kwargs) 
-
-    
+        # cdo_func(*cdo_args, **cdo_kwargs)
 
     def run_real(self, cdo):
         cdo_op = getattr(cdo, self.operator)
         pool = ProcessPool(nodes=10)
         results = []
-        
+
         count = len(self.run_config.cdo_inputs)
         assert count == len(self.run_config.cdo_outputs)
-        
+
         params = [self.run_config.cdo_parameters] * count
         options = [self.run_config.cdo_options] * count
-        
+
         ops = [cdo_op] * count
         cdo_args = []
         cdo_kwargs = []
@@ -194,12 +192,11 @@ class Operator:
             if self.run_config.cdo_inputs[i] != "":
                 cdo_kwargs[i]["input"] = self.run_config.cdo_inputs[i]
 
-
         for i in range(count):
             results.append(ops[i](*cdo_args[i], **cdo_kwargs[i]))
 
         return results
-        
+
     def run(self, cdo, dry_run=False):
         if dry_run:
             return self.run_dry()

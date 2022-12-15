@@ -94,7 +94,6 @@ class Node:
                         os.path.relpath(os.path.join(root, file), self.path)
                     )
 
-
     def add_child(self, node):
         node.parent = self
         self.children.append(node)
