@@ -51,7 +51,6 @@ def test_operator_run_single_op_dry():
 
     op.setup(in_n.find_node("a_files"))
     cmds = op.run(cdo, dry_run=True)
-    print(cmds)
 
     assert cmds == [
         "cdo -sellonlat,p1,p2 a/in/a1.nc out/a1-out.nc",

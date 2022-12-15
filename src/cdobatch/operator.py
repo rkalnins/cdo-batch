@@ -109,7 +109,8 @@ class Operator:
             cdo_parameters=self.parameter.strip(),
             cdo_options=cdo_options,
         )
-
+        
+        print(f"node {node.name} [{node.get_root_path()}] maps:")
         for f in node.files:
             input_file = os.path.join(node.get_root_path(), f)
             if self.chain is None:
@@ -121,6 +122,8 @@ class Operator:
 
             # prepare output file
             cdo_output = self.get_output_name(f)
+
+            print(f"\t{input_file.strip()} -> {cdo_output}")
 
             # prepare input file
             self.run_config.cdo_inputs.append(cdo_input)

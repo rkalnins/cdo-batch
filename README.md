@@ -49,7 +49,7 @@ with Record(load_path="CMIP6_data/tas/MODELS_filtered/ssp585") as r:
                                                  "year_avg/Projections",
                                                  "year_avg/Historical"])
 
-    ops = []
+    ops = {}
     output_node = Node("outputs", "CMIP6_data/tas/MODELS_filtered/ssp585/iceshelves")
     r.add_node(output_node)
 
@@ -73,7 +73,7 @@ with Record(load_path="CMIP6_data/tas/MODELS_filtered/ssp585") as r:
                         output_format="{input_basename}" + f".{shelf["name"]}.nc"
                 )
 
-            ops.append(c)
+            ops[n.name].append(c)
 
     # apply operator to all leaf nodes with files
     # will create all required directories first

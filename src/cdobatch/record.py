@@ -40,18 +40,10 @@ class Record:
         self.root_nodes.append(node)
 
     def index(self):
-        all_paths = []
-
-        # get all files
-        for root, _, files in os.walk(self.path):
-            for file in files:
-                if file.endswith(".nc"):
-                    all_paths.append(
-                        os.path.relpath(os.path.join(root, file), self.path)
-                    )
-
         # create root node with all files
-        self.root_nodes.append(Node("root", self.path, files=all_paths))
+        n = Node("root", self.path)
+        n.find_files()
+        self.root_nodes.append(n)
 
     def load(self):
         with open(self.path, "r") as record:

@@ -40,7 +40,6 @@ class Node:
         return os.path.join(self.parent.get_root_path(), self.path)
 
     def path_split(self, paths, node_names=None):
-
         # split off filesystem parts using paths into len(paths) nodes
         # one node, per path
 
@@ -85,6 +84,16 @@ class Node:
             i += 1
 
         return new_nodes
+
+    def find_files(self):
+        # get all files
+        for root, _, files in os.walk(self.path):
+            for file in files:
+                if file.endswith(".nc"):
+                    self.files.append(
+                        os.path.relpath(os.path.join(root, file), self.path)
+                    )
+
 
     def add_child(self, node):
         node.parent = self
