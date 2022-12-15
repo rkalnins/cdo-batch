@@ -15,7 +15,7 @@ from cdobatch.op import Operator
 
 cdo = Cdo()
 
-files = ["a.nc", "b,nc"]
+files = ["a.nc", "b.nc"]
 input_node = Node("root", "path/to/data")
 
 op = Operator("selname", "invTime")
