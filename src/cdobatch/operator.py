@@ -197,8 +197,12 @@ class Operator:
 
         return results
 
-    def run(self, cdo, dry_run=False):
+    def run(self, cdo, create_outputs_only=False, dry_run=False):
         if dry_run:
             return self.run_dry()
+
+        if create_outputs_only:
+            self.preprocess()
+            return
 
         return self.run_real(cdo)

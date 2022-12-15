@@ -7,10 +7,48 @@ CDO operators.
 
 ## Example Usage
 
-Create a dataset index from the command line. Creating an index only needs to occur once.
-```bash
-cdo-batch -index dataset/root/dir -index_name dataset.json
+Create a node and apply an operation.
+```python
+from cdo import *
+from cdobatch.node import Node
+from cdobatch.op import Operator
+
+cdo = Cdo()
+
+files = ["a.nc", "b,nc"]
+input_node = Node("root", "path/to/data")
+
+op = Operator("selname", "invTime")
+op.setup(input_node)
+
+# returns list of paths to temporary files generated
+output_files = op.run(cdo)
 ```
+
+Discover files and apply an operation, write output to output files.
+```python
+from cdo import *
+from cdobatch.node import Node
+from cdobatch.op import Operator
+
+input_node = Node("root", "path/to/data")
+output_node = Node("output", "path/to/output")
+
+# find all data files
+input_node.find_files()
+
+op = Operator(
+        "sellonlatbox",
+        "0,1,2,3",
+        output_node=output_node,
+        output_format="{input_basename}.{customField}.nc)
+        opvar={"customField": "foo"},
+)
+
+op.setup(input_node)
+errors = op.run(cdo)
+```
+
 
 Apply the same operator to a collection of files that's already been indexed. Move output to different directory.
 
@@ -67,10 +105,11 @@ with Record(load_path="CMIP6_data/tas/MODELS_filtered/ssp585") as r:
 
             # each command maps to an output node
             # built-in `input_basename` is name of input file
-            c = Operator("sellonlatbox",
-                        shelf["coords"],
-                        output=shelf_output_node,
-                        output_format="{input_basename}" + f".{shelf["name"]}.nc"
+            c = Operator(
+                    "sellonlatbox",
+                    shelf["coords"],
+                    output=shelf_output_node,
+                    output_format="{input_basename}" + f".{shelf["name"]}.nc"
                 )
 
             ops[n.name].append(c)
