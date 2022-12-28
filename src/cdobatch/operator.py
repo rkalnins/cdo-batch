@@ -87,7 +87,7 @@ class Operator:
         output_format="",
         chain=None,
         options="",
-        use_chained_input=False
+        use_chained_input=False,
     ):
         self.operator = operator
         self.parameter = parameter
@@ -109,7 +109,7 @@ class Operator:
             self.output_format = "{input_basename}.nc"
         else:
             self.output_format = output_format
-        
+
         if chain is None:
             self.chain = []
         elif isinstance(chain, Operator):
@@ -124,17 +124,17 @@ class Operator:
     def get_chain(self, input_file="", is_root=True):
         if len(self.chain) == 0:
             return ""
-       
+
         cmd = ""
 
         for o in self.chain:
-            this_cmd = f"-{o.operator}{o.parameter} " 
+            this_cmd = f"-{o.operator}{o.parameter} "
 
             if not o.use_chained_input:
                 this_cmd += f"{input_file} "
 
             cmd = cmd + this_cmd + o.get_chain(is_root=False)
-        
+
         return cmd.strip()
 
     def append_chain(self, chain: Operator | list):
@@ -142,7 +142,6 @@ class Operator:
             self.chain.append(chain)
         else:
             self.chain.extend(chain)
-        
 
     def get_output_name(self, file_path):
         if self.output_node is None:
@@ -169,13 +168,12 @@ class Operator:
             cdo_input = input_file.strip()
 
         return cdo_input
-        
 
     def setup(self, node, chain_call=False):
         # don't setup again if already configured
         if chain_call and self.is_setup:
             return
-    
+
         # setup all nodes in chain
         for c in self.chain:
             c.setup(node, chain_call=True)

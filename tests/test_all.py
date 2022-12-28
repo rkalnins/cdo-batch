@@ -29,10 +29,11 @@ def test_climate_ops():
 
     assert current_years == [str(y) for y in range(1967, 2001)]
     assert future_years == [str(y) for y in range(2037, 2071)]
-    
-    output = Node("min_temps", "output") 
-    merge = Operator("mergetime", output_node=output,
-                     output_format="{input_basename}_CFD.nc")
+
+    output = Node("min_temps", "tests/output")
+    merge = Operator(
+        "mergetime", output_node=output, output_format="{input_basename}_CFD.nc"
+    )
 
     for y in current_years:
         sel_tmin = Operator("selname", "tmin")
@@ -45,4 +46,4 @@ def test_climate_ops():
 
     merge.setup(rcm)
 
-
+    merge.run(cdo)
