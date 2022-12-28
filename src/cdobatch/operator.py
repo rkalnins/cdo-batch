@@ -1,9 +1,35 @@
 from __future__ import annotations
 
+from contextlib import redirect_stdout, redirect_stderr
+
+import io
 import os
-from pathos.pools import ProcessPool
+from typing import Any
 
 from .node import Node
+from cdo import *
+
+
+class CdoResult:
+    result: Any
+    error: Any
+    errout: str
+    stdout: str
+
+    errmsg: str
+
+    def __init__(self, result, error, errout, stdout):
+        self.result = result
+        self.error = error
+
+        # warning: all cdo output goes to stdout, not to redirect_stderr
+        self.errout = errout.getvalue()
+        self.stdout = stdout.getvalue()
+
+        if error is not None:
+            self.errmsg = [l for l in self.stdout.splitlines() if l != ""][-1]
+        else:
+            self.errmsg = ""
 
 
 class OperatorRunConfiguration:
@@ -42,9 +68,15 @@ class Operator:
     output_format: str
     options: str
 
-    chain: Operator
+    is_setup: bool
+    use_chained_input: bool
+
+    chain: list
 
     run_config: OperatorRunConfiguration
+
+    def __init__(self):
+        pass
 
     def __init__(
         self,
@@ -55,10 +87,15 @@ class Operator:
         output_format="",
         chain=None,
         options="",
+        use_chained_input=False
     ):
         self.operator = operator
         self.parameter = parameter
         self.output_node = output_node
+
+        self.is_setup = False
+
+        self.use_chained_input = use_chained_input
 
         if self.parameter != "":
             self.parameter = "," + self.parameter
@@ -72,19 +109,40 @@ class Operator:
             self.output_format = "{input_basename}.nc"
         else:
             self.output_format = output_format
+        
+        if chain is None:
+            self.chain = []
+        elif isinstance(chain, Operator):
+            self.chain = [chain]
+        else:
+            self.chain = chain
 
-        self.chain = chain
         self.options = options
 
         self.run_config = None
 
-    def get_chain(self):
-        if self.chain is None:
+    def get_chain(self, input_file="", is_root=True):
+        if len(self.chain) == 0:
             return ""
+       
+        cmd = ""
 
-        # last in chain is first operator applied
-        cmd = self.chain.get_chain() + f" -{self.operator}{self.parameter}"
+        for o in self.chain:
+            this_cmd = f"-{o.operator}{o.parameter} " 
+
+            if not o.use_chained_input:
+                this_cmd += f"{input_file} "
+
+            cmd = cmd + this_cmd + o.get_chain(is_root=False)
+        
         return cmd.strip()
+
+    def append_chain(self, chain: Operator | list):
+        if isinstance(chain, Operator):
+            self.chain.append(chain)
+        else:
+            self.chain.extend(chain)
+        
 
     def get_output_name(self, file_path):
         if self.output_node is None:
@@ -102,16 +160,31 @@ class Operator:
             path, self.output_format.format(input_basename=input_name, **self.opvar)
         )
 
-    def setup(self, node):
-        if self.options is None:
-            cdo_options = ""
+    def get_py_cdo_input(self, input_file):
+        if len(self.chain) > 0:
+            # operating chaining provided with inputs
+            cdo_input = f"{self.get_chain(input_file=input_file)}".strip()
         else:
-            cdo_options = self.options
+            # no chaining
+            cdo_input = input_file.strip()
 
+        return cdo_input
+        
+
+    def setup(self, node, chain_call=False):
+        # don't setup again if already configured
+        if chain_call and self.is_setup:
+            return
+    
+        # setup all nodes in chain
+        for c in self.chain:
+            c.setup(node, chain_call=True)
+
+        # convert operator vars to cdo command input strings
         self.run_config = OperatorRunConfiguration(
             f"-{self.operator}",
             cdo_parameters=self.parameter.strip(),
-            cdo_options=cdo_options,
+            cdo_options=self.options,
         )
 
         if self.output_node is not None:
@@ -119,12 +192,8 @@ class Operator:
 
         for f in node.files:
             input_file = os.path.join(node.get_root_path(), f)
-            if self.chain is None:
-                # operating chaining provided with inputs
-                cdo_input = f"{self.get_chain()} {input_file}".strip()
-            else:
-                # no chaining
-                cdo_input = input_file.strip()
+
+            cdo_input = self.get_py_cdo_input(input_file)
 
             # prepare output file
             cdo_output = self.get_output_name(f)
@@ -135,6 +204,8 @@ class Operator:
             # prepare input file
             self.run_config.cdo_outputs.append(cdo_output)
             self.run_config.cdo_inputs.append(cdo_input)
+
+        self.is_setup = True
 
     def preprocess(self):
         # TODO: does cdo create output directories?
@@ -157,14 +228,8 @@ class Operator:
 
         return results
 
-    @staticmethod
-    def parallel_op(cdo_func, cdo_args, cdo_kwargs):
-        print(cdo_args, cdo_kwargs)
-        # cdo_func(*cdo_args, **cdo_kwargs)
-
     def run_real(self, cdo):
         cdo_op = getattr(cdo, self.operator)
-        pool = ProcessPool(nodes=10)
         results = []
 
         count = len(self.run_config.cdo_inputs)
@@ -193,7 +258,15 @@ class Operator:
                 cdo_kwargs[i]["input"] = self.run_config.cdo_inputs[i]
 
         for i in range(count):
-            results.append(ops[i](*cdo_args[i], **cdo_kwargs[i]))
+            err = io.StringIO()
+            out = io.StringIO()
+            try:
+                with redirect_stderr(err), redirect_stdout(out):
+                    r = ops[i](*cdo_args[i], **cdo_kwargs[i])
+            except CDOException as e:
+                results.append(CdoResult(None, e, err, out))
+            else:
+                results.append(CdoResult(r, None, err, out))
 
         return results
 

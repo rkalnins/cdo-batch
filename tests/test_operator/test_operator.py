@@ -10,12 +10,14 @@ from cdobatch.node import Node
 
 def test_operator_chain():
     op_3 = Operator("test_op_3rd", "z")
-    op_2 = Operator("test_op_2nd", "a,b,c", chain=op_3)
-    op_1 = Operator("test_op_1st", "1.0,0.0,1.0,0.0", chain=op_2)
+    op_2 = Operator("test_op_2nd", "a,b,c")
+    op_1 = Operator("test_op_1st", "1.0,0.0,1.0,0.0")
+
+    op_1.append_chain([op_2, op_3])
 
     op_chain = op_1.get_chain()
 
-    assert op_chain == "-test_op_2nd,a,b,c -test_op_1st,1.0,0.0,1.0,0.0"
+    assert op_chain == "-test_op_2nd,a,b,c  -test_op_3rd,z"
 
 
 def test_operator_output_naming():
@@ -123,11 +125,12 @@ def test_operator_showname():
     op.setup(in_n.find_node("a_files"))
     names = op.run(cdo)
 
-    assert names[0] == [
+    assert names[0].error == None
+    assert names[0].result == [
         "lastRecord invTime prevRecord inventory isOverflow firstInBin lastInBin numericWMOid latitude longitude elevation riverStage riverFlow precip5min precip5minQCA precip5minQCR precip5minQCD precip5minICA precip5minICR precip1hr precip1hrQCA precip1hrQCR precip1hrQCD precip1hrICA precip1hrICR precip3hr precip3hrQCA precip3hrQCR precip3hrQCD precip3hrICA precip3hrICR precip6hr precip6hrQCA precip6hrQCR precip6hrQCD precip6hrICA precip6hrICR precip12hr precip12hrQCA precip12hrQCR precip12hrQCD precip12hrICA precip12hrICR precip24hr precip24hrQCA precip24hrQCR precip24hrQCD precip24hrICA precip24hrICR precipAccum precipAccumQCA precipAccumQCR precipAccumQCD precipAccumICA precipAccumICR"
     ]
 
-    assert names[2] == ["tos"]
+    assert names[2].result == ["tos"]
 
 
 def test_operator_selname_output_to_temp():
@@ -140,11 +143,29 @@ def test_operator_selname_output_to_temp():
     op = Operator("selname", "invTime")
 
     op.setup(in_n.find_node("a_files"))
-    output_files = op.run(cdo)
+    results = op.run(cdo)
 
-    assert len(output_files) == 2
+    assert len(results) == 2
 
-    for o in output_files:
-        d = Dataset(o, "r", format="NETCDF4")
+    for r in results:
+        d = Dataset(r.result, "r", format="NETCDF4")
         # TODO: test something here, if cdo finishes, odds are good it succeeded
         d.close()
+
+
+def test_operator_selname_fail():
+    cdo = Cdo()
+
+    files = ["a1.nc", "a2.nc"]
+    in_n = Node("root", "tests/data")
+    in_n.add_child(Node("a_files", "a", files=files))
+
+    op = Operator("selname", "xxxxxx")
+
+    op.setup(in_n.find_node("a_files"))
+    r = op.run(cdo)
+
+    assert r[0].error != None
+    assert r[1].error != None
+    assert isinstance(r[0].error, CDOException)
+    assert isinstance(r[1].error, CDOException)

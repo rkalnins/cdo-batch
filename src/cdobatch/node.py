@@ -20,7 +20,7 @@ class Node:
         else:
             self.files = files
 
-    def find_node(self, name):
+    def find_node(self, name: str) -> Node | None:
         if name == self.name:
             return self
 
@@ -77,8 +77,15 @@ class Node:
                 name = node_names[i]
 
             new_relative_paths = [os.path.relpath(mp, p) for mp in matching_paths]
-            n = Node(name, p, new_relative_paths)
-            self.add_child(n)
+
+            n = self.find_node(name)
+
+            if n is None:
+                n = Node(name, p, new_relative_paths)
+                self.add_child(n)
+            else:
+                n.files = new_relative_paths
+
             new_nodes.append(n)
 
             i += 1
@@ -87,12 +94,17 @@ class Node:
 
     def find_files(self):
         # get all files
-        for root, _, files in os.walk(self.path):
+        for root, _, files in os.walk(self.get_root_path()):
             for file in files:
                 if file.endswith(".nc"):
                     self.files.append(
                         os.path.relpath(os.path.join(root, file), self.path)
                     )
+
+        paths = [c.path for c in self.children]
+        names = [c.name for c in self.children]
+
+        self.path_split(paths, names)
 
     def add_child(self, node):
         node.parent = self

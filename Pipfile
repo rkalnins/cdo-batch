@@ -9,7 +9,6 @@ cdobatch = {editable = true, path = "."}
 netcdf4 = "*"
 scipy = "*"
 xarray = "*"
-pathos = "*"
 
 [dev-packages]
 black = "*"

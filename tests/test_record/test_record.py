@@ -36,11 +36,15 @@ def test_record_index():
         assert root.name == "root"
         assert root.children == []
         assert root.path == "tests/data"
-        assert len(root.files) == 5
+        assert len(root.files) == 9
         assert root.files == [
             "a/a3.nc",
             "a/a2.nc",
             "a/a1.nc",
+            "climate/RCM3/gfdl_RCM3_Future.nc",
+            "climate/RCM3/gfdl_RCM3_Current.nc",
+            "climate/IRI/GFDL_Future.nc",
+            "climate/IRI/GFDL_Current.nc",
             "b/samples/s2.nc",
             "b/samples/s1.nc",
         ]
