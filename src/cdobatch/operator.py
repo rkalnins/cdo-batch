@@ -172,8 +172,6 @@ class Operator:
 
     def configure(self, node: Node):
         # depth first search to build all cdo commands
-        print(node.name)
-        print(node.files)
         self.cdo_cmds = []
 
         for input_file in node.files:
@@ -201,23 +199,28 @@ class Operator:
 
                 self.cdo_cmds.append(cmd)
 
+    def make_cdo_cmd_str(self, c):
+        cmd_str = "cdo"
+        if c["options"] != "":
+            cmd_str += f' {c["options"]}'
+
+        cmd_str += f' -{c["func_name"]}'
+
+        if c["param"] != "":
+            cmd_str += f',{c["param"]}'
+
+        cmd_str += f' {c["input"]} {c["output"]}'
+        cmd_str = cmd_str.strip()
+
+        return cmd_str
+
+        
+
     def run_dry(self):
         results = []
 
         for c in self.cdo_cmds:
-            cmd_str = "cdo"
-            if c["options"] != "":
-                cmd_str += f' {c["options"]}'
-
-            cmd_str += f' -{c["func_name"]}'
-
-            if c["param"] != "":
-                cmd_str += f',{c["param"]}'
-
-            cmd_str += f' {c["input"]} {c["output"]}'
-            cmd_str = cmd_str.strip()
-
-            print(cmd_str)
+            cmd_str = self.make_cdo_cmd_str(c)
             results.append(cmd_str)
 
         return results
@@ -227,7 +230,39 @@ class Operator:
         pass
 
     def run_real(self, cdo):
-        pass
+        results = []
+        for c in self.cdo_cmds:
+            cdo_func = getattr(cdo, c["func_name"])
+
+            err = io.StringIO()
+            out = io.StringIO()
+            
+            try:
+                with redirect_stderr(err), redirect_stdout(out):
+                    args = []
+                    kwargs = {}
+                    
+                    if c["param"] != "":
+                        args.append(c["param"])
+
+                    if c["input"] != "":
+                        kwargs["input"] = c["input"]
+
+                    if c["output"] != "":
+                        kwargs["output"] = c["output"]
+
+                    if c["options"] != "":
+                        kwargs["options"] = c["options"]
+
+                    r = cdo_func(*args, **kwargs)
+
+            except CDOException as e:
+                results.append(CdoResult(None, e, err, out))
+            else:
+                results.append(CdoResult(r, None, err, out))
+
+        return results
+
 
     def run(self, cdo, create_outputs_only=False, dry_run=False):
         if dry_run:
