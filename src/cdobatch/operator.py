@@ -32,241 +32,202 @@ class CdoResult:
             self.errmsg = ""
 
 
-class OperatorRunConfiguration:
-    cdo_operator: str
-    cdo_parameters: str
-    cdo_inputs: list
-    cdo_outputs: list
-    cdo_options: str
-
-    def __init__(
-        self,
-        cdo_operator,
-        cdo_parameters=None,
-        cdo_inputs=None,
-        cdo_outputs=None,
-        cdo_options=None,
-    ):
-        self.cdo_operator = cdo_operator
-        self.cdo_parameters = cdo_parameters
-        self.cdo_inputs = cdo_inputs
-        self.cdo_outputs = cdo_outputs
-        self.cdo_options = cdo_options
-
-        if self.cdo_inputs is None:
-            self.cdo_inputs = []
-
-        if self.cdo_outputs is None:
-            self.cdo_outputs = []
-
-
 class Operator:
-    operator: str
-    parameter: str
-    output_node: Node
-    opvar: dict
-    output_format: str
-    options: str
+    op_next: list[Operator]
+    op_prev: list[Operator]
 
-    is_setup: bool
-    use_chained_input: bool
+    op_name: str
+    op_param: str
+    op_out_node: Node
+    op_out_name_vars: dict
+    out_name_format: str
+    op_options: str
+    op_input_file: str
 
-    chain: list
+    visited: bool
 
-    run_config: OperatorRunConfiguration
+    cdo_cmds: list[dict]
 
     def __init__(self):
         pass
 
     def __init__(
         self,
-        operator,
-        parameter="",
-        output_node=None,
-        opvar=None,
-        output_format="",
-        chain=None,
+        name,
+        param="",
+        out_node=None,
+        out_name_vars=None,
+        out_name_format="",
         options="",
-        use_chained_input=False,
     ):
-        self.operator = operator
-        self.parameter = parameter
-        self.output_node = output_node
+        self.op_name = name
+        self.op_param = param
+        self.op_out_node = out_node
+        self.out_name_format = out_name_format
+        self.op_options = options
+        self.op_input_file = ""
 
-        self.is_setup = False
+        self.visited = False
 
-        self.use_chained_input = use_chained_input
+        self.op_next = []
 
-        if self.parameter != "":
-            self.parameter = "," + self.parameter
+        self.cdo_cmds = []
 
-        if opvar is None:
-            self.opvar = {}
+        if out_name_vars is None:
+            self.op_out_name_vars = {}
         else:
-            self.opvar = opvar
+            self.op_out_name_vars = out_name_vars
 
-        if output_format is None:
-            self.output_format = "{input_basename}.nc"
+        if out_name_format == "":
+            self.out_name_format = "{input_basename}.nc"
         else:
-            self.output_format = output_format
+            self.out_name_format = out_name_format
 
-        if chain is None:
-            self.chain = []
-        elif isinstance(chain, Operator):
-            self.chain = [chain]
+    def serial_pipe_on(self, **kwargs):
+        # repeat this command chain on each var
+        # does not create a new cdo command
+        if "ops" in kwargs:
+            # var is operator
+            pass
+        elif "params" in kwargs:
+            # var is param
+            pass
+        elif "inputs" in kwargs:
+            # var is input file name
+            pass
         else:
-            self.chain = chain
+            print("Unknown var")
 
-        self.options = options
+    def permute_on(self, op: Operator, **kwargs):
+        # adds permutations to operator chain
+        # var count should equal number of inputs
+        # each permutation corresponds to 1 cdo command
+        if "ops" in kwargs:
+            # var is operator
+            pass
+        elif "params" in kwargs:
+            # var is param
+            pass
+        elif "inputs" in kwargs:
+            # var is input file name
+            pass
+        else:
+            print("Unknown var")
 
-        self.run_config = None
+    def fork_on(self, op: Operator, **kwargs):
+        # splits inputs and applies different variables to
+        # different paths
+        # each fork is 1 additional CDO command
+        if "ops" in kwargs:
+            # var is operator
+            pass
+        elif "params" in kwargs:
+            # var is param
+            pass
+        elif "inputs" in kwargs:
+            # var is input file name
+            pass
+        else:
+            print("Unknown var")
 
-    def get_chain(self, input_file="", is_root=True):
-        if len(self.chain) == 0:
+    def append(self, op: Operator):
+        self.op_next.append(op)
+
+    def extend(self, ops: list[Operator]):
+        self.append(ops[0])
+        for i in range(len(ops) - 1):
+            ops[i].append(ops[i + 1])
+
+    def get_output_name(self, input_path: str) -> str:
+        if self.op_out_node is None:
             return ""
 
-        cmd = ""
-
-        for o in self.chain:
-            this_cmd = f"-{o.operator}{o.parameter} "
-
-            if not o.use_chained_input:
-                this_cmd += f"{input_file} "
-
-            cmd = cmd + this_cmd + o.get_chain(is_root=False)
-
-        return cmd.strip()
-
-    def append_chain(self, chain: Operator | list):
-        if isinstance(chain, Operator):
-            self.chain.append(chain)
-        else:
-            self.chain.extend(chain)
-
-    def get_output_name(self, file_path):
-        if self.output_node is None:
-            return ""
-
-        # TODO: provide more options for renaming
-
-        # get destination directory (no file name)
-        path = self.output_node.get_root_path()
-
-        # get file name of output
-        input_name = os.path.splitext(os.path.basename(file_path))[0]
-
+        output_path = self.op_out_node.get_root_path()
+        input_name = os.path.splitext(os.path.basename(input_path))[0]
         return os.path.join(
-            path, self.output_format.format(input_basename=input_name, **self.opvar)
+            output_path,
+            self.out_name_format.format(
+                input_basename=input_name, **self.op_out_name_vars
+            ),
         )
 
-    def get_py_cdo_input(self, input_file):
-        if len(self.chain) > 0:
-            # operating chaining provided with inputs
-            cdo_input = f"{self.get_chain(input_file=input_file)}".strip()
+    def get_input_name(self, input_file):
+        return input_file
+
+    def get_commands(self, op_paths, working_path):
+        self.visited = True
+        working_path.append(self)
+
+        if len(self.op_next) == 0:
+            op_paths.append(working_path)
         else:
-            # no chaining
-            cdo_input = input_file.strip()
+            for n in self.op_next:
+                if not n.visited:
+                    op_paths = n.get_commands(op_paths, working_path)
 
-        return cdo_input
+        working_path = working_path[:-1]
+        self.visited = False
 
-    def setup(self, node, chain_call=False):
-        # don't setup again if already configured
-        if chain_call and self.is_setup:
-            return
+        return op_paths
 
-        # setup all nodes in chain
-        for c in self.chain:
-            c.setup(node, chain_call=True)
+    def configure(self, node: Node):
+        # depth first search to build all cdo commands
+        print(node.name)
+        print(node.files)
+        self.cdo_cmds = []
 
-        # convert operator vars to cdo command input strings
-        self.run_config = OperatorRunConfiguration(
-            f"-{self.operator}",
-            cdo_parameters=self.parameter.strip(),
-            cdo_options=self.options,
-        )
+        for input_file in node.files:
+            input_path = os.path.join(node.get_root_path(), input_file)
+            op_path = []
+            working_set = []
+            op_path = self.get_commands(op_path, working_set)
 
-        if self.output_node is not None:
-            print(f"node {node.name} [{node.get_root_path()}] maps:")
+            # translate op path, node, input file into cdo arguments
+            for p in op_path:
+                cmd = {}
+                cmd["func_name"] = self.op_name
+                cmd["param"] = self.op_param
+                cmd["output"] = self.get_output_name(input_path)
+                cmd["options"] = self.op_options
+                cmd["input"] = ""
 
-        for f in node.files:
-            input_file = os.path.join(node.get_root_path(), f)
+                # skip first item in chain
+                for o in p[1:]:
+                    # build piped input
+                    cmd["input"] += f"-{o.op_name},{o.op_param} {o.op_input_file} "
 
-            cdo_input = self.get_py_cdo_input(input_file)
+                cmd["input"] += self.get_input_name(input_path)
+                cmd["input"] = cmd["input"].strip()
 
-            # prepare output file
-            cdo_output = self.get_output_name(f)
-
-            if cdo_output != "":
-                print(f"\t{input_file.strip()} -> {cdo_output}")
-
-            # prepare input file
-            self.run_config.cdo_outputs.append(cdo_output)
-            self.run_config.cdo_inputs.append(cdo_input)
-
-        self.is_setup = True
-
-    def preprocess(self):
-        # TODO: does cdo create output directories?
-        # TODO: create all directories required
-        pass
+                self.cdo_cmds.append(cmd)
 
     def run_dry(self):
         results = []
 
-        for i in range(len(self.run_config.cdo_outputs)):
-            op_name = self.run_config.cdo_operator
-            op_params = self.run_config.cdo_parameters
-            in_path_i = self.run_config.cdo_inputs[i]
-            out_path_i = self.run_config.cdo_outputs[i]
-            op_options = self.run_config.cdo_options
+        for c in self.cdo_cmds:
+            cmd_str = "cdo"
+            if c["options"] != "":
+                cmd_str += f' {c["options"]}'
 
-            results.append(
-                f"cdo {op_name}{op_params} {in_path_i} {out_path_i} {op_options}".strip()
-            )
+            cmd_str += f' -{c["func_name"]}'
+
+            if c["param"] != "":
+                cmd_str += f',{c["param"]}'
+
+            cmd_str += f' {c["input"]} {c["output"]}'
+            cmd_str = cmd_str.strip()
+
+            print(cmd_str)
+            results.append(cmd_str)
 
         return results
+
+    def preprocess(self):
+        # create all output files
+        pass
 
     def run_real(self, cdo):
-        cdo_op = getattr(cdo, self.operator)
-        results = []
-
-        count = len(self.run_config.cdo_inputs)
-        assert count == len(self.run_config.cdo_outputs)
-
-        params = [self.run_config.cdo_parameters] * count
-        options = [self.run_config.cdo_options] * count
-
-        ops = [cdo_op] * count
-        cdo_args = []
-        cdo_kwargs = []
-        for i in range(count):
-            cdo_args.append([])
-            cdo_kwargs.append({})
-
-            if self.run_config.cdo_parameters != "":
-                cdo_args[i].append(self.run_config.cdo_parameters)
-
-            if self.run_config.cdo_options != "":
-                cdo_kwargs[i]["options"] = self.run_config.cdo_options
-
-            if self.run_config.cdo_outputs[i] != "":
-                cdo_kwargs[i]["output"] = self.run_config.cdo_outputs[i]
-
-            if self.run_config.cdo_inputs[i] != "":
-                cdo_kwargs[i]["input"] = self.run_config.cdo_inputs[i]
-
-        for i in range(count):
-            err = io.StringIO()
-            out = io.StringIO()
-            try:
-                with redirect_stderr(err), redirect_stdout(out):
-                    r = ops[i](*cdo_args[i], **cdo_kwargs[i])
-            except CDOException as e:
-                results.append(CdoResult(None, e, err, out))
-            else:
-                results.append(CdoResult(r, None, err, out))
-
-        return results
+        pass
 
     def run(self, cdo, create_outputs_only=False, dry_run=False):
         if dry_run:
