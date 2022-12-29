@@ -173,3 +173,25 @@ def test_operator_selname_fail():
     assert r[1].error != None
     assert isinstance(r[0].error, CDOException)
     assert isinstance(r[1].error, CDOException)
+
+
+def test_vectorize():
+    cdo = Cdo()
+    files = ["a1.nc", "a2.nc"]
+    in_n = Node("root", "tests/data")
+    in_n.add_child(Node("a_files", "a", files=files))
+
+    op = Operator("test")
+    op_a = Operator("op_a")
+    op_b = Operator("op_b")
+
+    p = ["2", "3", "4"]
+    op.vectorize_on([op_a, op_b], dimensions=[1, len(p)], op_idx=1, params=p)
+    op.configure(in_n.find_node("a_files"))
+
+    r = op.run(cdo, dry_run=True)
+
+    assert r == [
+        "cdo -test -op_a -op_b,2 -op_a -op_b,3 -op_a -op_b,4 tests/data/a/a1.nc",
+        "cdo -test -op_a -op_b,2 -op_a -op_b,3 -op_a -op_b,4 tests/data/a/a2.nc",
+    ]

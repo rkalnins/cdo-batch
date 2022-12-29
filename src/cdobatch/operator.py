@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import redirect_stdout, redirect_stderr
 
+import copy
 import io
 import os
 from typing import Any
@@ -83,20 +84,43 @@ class Operator:
         else:
             self.out_name_format = out_name_format
 
-    def serial_pipe_on(self, **kwargs):
-        # repeat this command chain on each var
-        # does not create a new cdo command
+    def vectorize_on(self, series: list[Operatpr], **kwargs):
+        # repeat the given series on each var modifying op
+        # append the craeted series to this op
+        dimensions = [1]
+        if "dimensions" in kwargs:
+            dimensions = kwargs["dimensions"]
+
+        vectorized = []
+        ops_to_modify = []
+
+        for _ in range(dimensions[0]):
+            row = []
+            variable_ops = []
+            for _ in range(dimensions[1]):
+                l = [copy.deepcopy(o) for o in series]
+                variable_ops.append(l[kwargs["op_idx"]])
+                row.extend(l)
+
+            vectorized.append(row)
+            ops_to_modify.append(variable_ops)
+
         if "ops" in kwargs:
-            # var is operator
             pass
         elif "params" in kwargs:
+            params = [kwargs["params"]]
             # var is param
-            pass
+            for i in range(dimensions[0]):
+                for j in range(dimensions[1]):
+                    ops_to_modify[i][j].op_param = params[i][j]
         elif "inputs" in kwargs:
             # var is input file name
             pass
         else:
             print("Unknown var")
+
+        for v in vectorized:
+            self.extend(v)
 
     def permute_on(self, op: Operator, **kwargs):
         # adds permutations to operator chain
@@ -191,8 +215,20 @@ class Operator:
 
                 # skip first item in chain
                 for o in p[1:]:
+                    needs_space = True
                     # build piped input
-                    cmd["input"] += f"-{o.op_name},{o.op_param} {o.op_input_file} "
+                    cmd["input"] += f"-{o.op_name}"
+
+                    if o.op_param != "":
+                        needs_space = False
+                        cmd["input"] += f",{o.op_param} "
+
+                    if o.op_input_file != "":
+                        needs_space = False
+                        cmd["input"] += f"{o.op_input_file} "
+
+                    if needs_space:
+                        cmd["input"] += " "
 
                 cmd["input"] += self.get_input_name(input_path)
                 cmd["input"] = cmd["input"].strip()
@@ -214,8 +250,6 @@ class Operator:
 
         return cmd_str
 
-        
-
     def run_dry(self):
         results = []
 
@@ -236,12 +270,12 @@ class Operator:
 
             err = io.StringIO()
             out = io.StringIO()
-            
+
             try:
                 with redirect_stderr(err), redirect_stdout(out):
                     args = []
                     kwargs = {}
-                    
+
                     if c["param"] != "":
                         args.append(c["param"])
 
@@ -262,7 +296,6 @@ class Operator:
                 results.append(CdoResult(r, None, err, out))
 
         return results
-
 
     def run(self, cdo, create_outputs_only=False, dry_run=False):
         if dry_run:
