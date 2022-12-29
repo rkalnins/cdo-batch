@@ -91,7 +91,6 @@ class Operator:
         if "dimensions" in kwargs:
             dimensions = kwargs["dimensions"]
 
-        vectorized = []
         ops_to_modify = []
 
         for _ in range(dimensions[0]):
@@ -102,25 +101,27 @@ class Operator:
                 variable_ops.append(l[kwargs["op_idx"]])
                 row.extend(l)
 
-            vectorized.append(row)
+            self.extend(row)
             ops_to_modify.append(variable_ops)
 
+        def modify(ops, prop_name, vars, dim0):
+            if dim0 == 1:
+                vars2d = [vars]
+            else:
+                vars2d = vars
+
+            for i in range(len(vars2d)):
+                for j in range(len(vars2d[0])):
+                    setattr(ops[i][j], prop_name, vars2d[i][j])
+
         if "ops" in kwargs:
-            pass
+            modify(ops_to_modify, "op_name", kwargs["ops"], dimensions[0])
         elif "params" in kwargs:
-            params = [kwargs["params"]]
-            # var is param
-            for i in range(dimensions[0]):
-                for j in range(dimensions[1]):
-                    ops_to_modify[i][j].op_param = params[i][j]
+            modify(ops_to_modify, "op_param", kwargs["params"], dimensions[0])
         elif "inputs" in kwargs:
-            # var is input file name
-            pass
+            modify(ops_to_modify, "op_input_file", kwargs["inputs"], dimensions[0])
         else:
             print("Unknown var")
-
-        for v in vectorized:
-            self.extend(v)
 
     def permute_on(self, op: Operator, **kwargs):
         # adds permutations to operator chain
@@ -183,16 +184,22 @@ class Operator:
         working_path.append(self)
 
         if len(self.op_next) == 0:
-            op_paths.append(working_path)
+            op_paths.append(working_path[:])
         else:
             for n in self.op_next:
                 if not n.visited:
-                    op_paths = n.get_commands(op_paths, working_path)
+                    op_paths = n.get_commands(op_paths, working_path[:])
 
         working_path = working_path[:-1]
         self.visited = False
 
         return op_paths
+
+    def print_graph(self):
+        print(self, self.op_name, self.op_param, self.op_input_file, self.op_next)
+
+        for o in self.op_next:
+            o.print_graph()
 
     def configure(self, node: Node):
         # depth first search to build all cdo commands
