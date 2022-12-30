@@ -19,7 +19,7 @@ files = ["a.nc", "b.nc"]
 input_node = Node("root", "path/to/data")
 
 op = Operator("selname", "invTime")
-op.setup(input_node)
+op.configure(input_node)
 
 # returns list of paths to temporary files generated
 output_files = op.run(cdo)
@@ -40,13 +40,13 @@ input_node.find_files()
 op = Operator(
         "sellonlatbox",
         "0,1,2,3",
-        output_node=output_node,
-        output_format="{input_basename}.{customField}.nc)
-        opvar={"customField": "foo"},
+        out_node=output_node,
+        out_name_format="{input_basename}.{customField}.nc)
+        out_name_vars={"customField": "foo"},
 )
 
-op.setup(input_node)
-errors = op.run(cdo)
+op.configure(input_node)
+results = op.run(cdo)
 ```
 
 
@@ -61,10 +61,10 @@ from cdobatch.op import Operator
 with Record(load_path="dataset.json") as r:
 
     output = Node("output", "path/to/output/relative/to/dataset/root")
-    op = Operator("sellonlatbox" "100,280,-50,50", output_node=output)
+    op = Operator("sellonlatbox" "100,280,-50,50", out_node=output)
 
     input_node = r.get_node("dataset_full")
-    op.setup(input_node)
+    op.configure(input_node)
     op.run()
 ```
 
@@ -103,11 +103,11 @@ with Record(load_path="CMIP6_data/tas/MODELS_filtered/ssp585") as r:
             op = Operator(
                     "sellonlatbox",
                     shelf["coords"],
-                    output=shelf_output_node,
-                    output_format="{input_basename}" + f".{shelf["name"]}.nc"
+                    out_node=shelf_output_node,
+                    out_name_format="{input_basename}" + f".{shelf["name"]}.nc"
             )
 
-            op.setup(n)
+            op.configure(n)
             op.run()
 
 ```

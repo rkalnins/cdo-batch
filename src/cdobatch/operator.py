@@ -155,6 +155,28 @@ class Operator:
         else:
             print("Unknown var")
 
+    def vector_apply(self, filter_op, var_name, var):
+
+        # apply single variable to all
+        for o in self.op_next:
+            o.vector_apply(filter_op, var_name, var)
+
+        if self.op_name == filter_op:
+            setattr(self, var_name, var)
+
+    def fork_apply(self, filter_op, var_name, vars):
+        apply_inputs = vars
+        if isinstance(vars, Node):
+            apply_inputs = [os.path.join(vars.get_root_path(), f) for f in vars.files]
+
+        if len(apply_inputs) != len(self.op_next):
+            print("Fork apply failed: not enough vars")
+            return
+
+
+        for i in range(len(self.op_next)):
+            self.op_next[i].vector_apply(filter_op, var_name, apply_inputs[i])
+
     def append(self, op: Operator):
         self.op_next.append(op)
 
@@ -201,45 +223,57 @@ class Operator:
         for o in self.op_next:
             o.print_graph()
 
-    def configure(self, node: Node):
+    def create_command(self, input_path, p, use_input_file):
+        cmd = {}
+        cmd["func_name"] = self.op_name
+        cmd["param"] = self.op_param
+        cmd["output"] = self.get_output_name(input_path)
+        cmd["options"] = self.op_options
+        cmd["input"] = ""
+
+        # skip first item in chain
+        for o in p[1:]:
+            needs_space = True
+            # build piped input
+            cmd["input"] += f"-{o.op_name}"
+
+            if o.op_param != "":
+                needs_space = False
+                cmd["input"] += f",{o.op_param} "
+
+            if o.op_input_file != "":
+                needs_space = False
+                cmd["input"] += f"{o.op_input_file} "
+
+            if needs_space:
+                cmd["input"] += " "
+
+        if use_input_file:
+            cmd["input"] += self.get_input_name(input_path)
+
+        cmd["input"] = cmd["input"].strip()
+
+        return cmd
+        
+
+    def configure(self, node: Node, route_mode="default", use_input_file=True):
         # depth first search to build all cdo commands
         self.cdo_cmds = []
-
-        for input_file in node.files:
+        
+        for i in range(len(node.files)):
+            input_file = node.files[i]
             input_path = os.path.join(node.get_root_path(), input_file)
             op_path = []
             working_set = []
             op_path = self.get_commands(op_path, working_set)
-
-            # translate op path, node, input file into cdo arguments
-            for p in op_path:
-                cmd = {}
-                cmd["func_name"] = self.op_name
-                cmd["param"] = self.op_param
-                cmd["output"] = self.get_output_name(input_path)
-                cmd["options"] = self.op_options
-                cmd["input"] = ""
-
-                # skip first item in chain
-                for o in p[1:]:
-                    needs_space = True
-                    # build piped input
-                    cmd["input"] += f"-{o.op_name}"
-
-                    if o.op_param != "":
-                        needs_space = False
-                        cmd["input"] += f",{o.op_param} "
-
-                    if o.op_input_file != "":
-                        needs_space = False
-                        cmd["input"] += f"{o.op_input_file} "
-
-                    if needs_space:
-                        cmd["input"] += " "
-
-                cmd["input"] += self.get_input_name(input_path)
-                cmd["input"] = cmd["input"].strip()
-
+            
+            if route_mode == "default":
+                # translate op path, node, input file into cdo arguments
+                for p in op_path:
+                    cmd = self.create_command(input_path, p, use_input_file)
+                    self.cdo_cmds.append(cmd)
+            elif route_mode == "file_fork_mapped":
+                cmd = self.create_command(input_path, op_path[i], use_input_file)
                 self.cdo_cmds.append(cmd)
 
     def make_cdo_cmd_str(self, c):
@@ -301,6 +335,9 @@ class Operator:
                 results.append(CdoResult(None, e, err, out))
             else:
                 results.append(CdoResult(r, None, err, out))
+            
+            if self.op_out_node is not None:
+                self.op_out_node.find_files()
 
         return results
 

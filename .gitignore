@@ -8,6 +8,8 @@ build
 build/lib
 build/lib/cdobatch/*
 
+tests/output
+
 edgar-download/edgar_urls
 edgar-download/downloads
 edgar-download/nc_files
