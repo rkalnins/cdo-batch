@@ -29,7 +29,7 @@ def test_climate_ops():
 
     assert current_years == [str(y) for y in range(1967, 2001)]
     assert future_years == [str(y) for y in range(2037, 2071)]
-    
+
     out_merge_tmp_n = Node("merge_tmp", path="tests/output/tmp")
     merge_op = Operator("mergetime", out_node=out_merge_tmp_n, options="-O")
 
@@ -52,17 +52,18 @@ def test_climate_ops():
     #   cfd->sy[f0]->sn[0]->....->cfd->sy[fn]->sn[0] = output[0]
     #   cfd->sy[c0]->sn[1]->....->cfd->sy[cn]->sn[1] = output[1]
     merge_op.configure(rcm, route_mode="file_fork_mapped", use_input_file=False)
-    
+
     # output means conain output files
     results = merge_op.run(cdo)
-    
+
     # this node contains the tmp files created
     timmean_output = Node("output", "tests/output/timmean_gfdl")
-    
-    timmean_op = Operator("timmean", out_node=timmean_output,
-                          out_name_format="{input_basename}_mean.nc", options="-O")
+
+    timmean_op = Operator(
+        "timmean",
+        out_node=timmean_output,
+        out_name_format="{input_basename}_mean.nc",
+        options="-O",
+    )
     timmean_op.configure(out_merge_tmp_n)
     timmean_op.run(cdo)
-
-
-
