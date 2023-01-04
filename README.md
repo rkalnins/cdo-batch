@@ -170,7 +170,7 @@ Create a node and apply an operation.
 ```python
 from cdo import *
 from cdobatch.node import Node
-from cdobatch.op import Operator
+from cdobatch.operator import Operator
 
 cdo = Cdo()
 
@@ -188,7 +188,7 @@ Discover files and apply an operation, write output to output files.
 ```python
 from cdo import *
 from cdobatch.node import Node
-from cdobatch.op import Operator
+from cdobatch.operator import Operator
 
 input_node = Node("root", "path/to/data")
 output_node = Node("output", "path/to/output")
@@ -214,7 +214,7 @@ Apply the same operator to a collection of files that's already been indexed. Mo
 ```python
 from cdobatch.record import Record
 from cdobatch.node import Node
-from cdobatch.op import Operator
+from cdobatch.operator import Operator
 
 # ensure any changes get written to dataset.json
 with Record(load_path="dataset.json") as r:
@@ -232,16 +232,15 @@ Apply an operator with variable parameters to a collection of files from a datas
 ```python
 from cdobatch.record import Record
 from cdobatch.node import Node
-from cdobatch.op import Operator
+from cdobatch.operator import Operator
 
 with Record(load_path="CMIP6_data/tas/MODELS_filtered/ssp585") as r:
     # split tree recursively twice using filesystem paths
     input_nodes = r.get_node("root").path_split(["seasonal_avg/Projections",
-                                                 "seasonal_avg/Historical"
+                                                 "seasonal_avg/Historical",
                                                  "year_avg/Projections",
                                                  "year_avg/Historical"])
 
-    ops = {}
     output_node = Node("outputs", "CMIP6_data/tas/MODELS_filtered/ssp585/iceshelves")
     r.add_node(output_node)
 
@@ -250,10 +249,10 @@ with Record(load_path="CMIP6_data/tas/MODELS_filtered/ssp585") as r:
 
             # create output path
             path_parts = n.get_root_path().split("/")[-1:]
-            path = f"iceshelves/{shelf["name"]}/{path_parts[1]}/{path_parts[0]}"
+            path = f"iceshelves/{shelf['name']}/{path_parts[1]}/{path_parts[0]}"
             
             # create output node
-            name = f"{shelf["name"]}_{path_parts[1]}_{path_parts[0]}"
+            name = f"{shelf['name']}_{path_parts[1]}_{path_parts[0]}"
             shelf_output_node = Node(name, path)
             output_node.add_child(shelf_output_node)
 
@@ -263,7 +262,7 @@ with Record(load_path="CMIP6_data/tas/MODELS_filtered/ssp585") as r:
                     "sellonlatbox",
                     shelf["coords"],
                     out_node=shelf_output_node,
-                    out_name_format="{input_basename}" + f".{shelf["name"]}.nc"
+                    out_name_format="{input_basename}" + f".{shelf['name']}.nc"
             )
 
             op.configure(n)

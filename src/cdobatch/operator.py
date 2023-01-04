@@ -435,7 +435,7 @@ class Operator:
         """
         for c in self.cdo_cmds:
             if c["output"] != "":
-                os.makedirs(os.path.dirname(c["output"]), exist_ok=True) 
+                os.makedirs(os.path.dirname(c["output"]), exist_ok=True)
 
     def run_real(self, cdo: Cdo) -> list[CdoResult]:
         """
