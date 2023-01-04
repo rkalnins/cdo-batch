@@ -186,7 +186,9 @@ def test_vectorize():
     op_b = Operator("op_b")
 
     p = ["2", "3", "4"]
-    op.vectorize_on([op_a, op_b], dimensions=[1, len(p)], op_idx=1, params=p)
+    op.vectorize_on(
+        [op_a, op_b], dimensions=[1, len(p)], op_idx=1, type="params", vars=p
+    )
     op.configure(in_n.find_node("a_files"))
 
     r = op.run(cdo, dry_run=True)
@@ -208,7 +210,7 @@ def test_vectorize_2d():
     op_b = Operator("op_b")
 
     p = [["2", "3", "4"], ["100", "103", "104"]]
-    op.vectorize_on([op_a, op_b], dimensions=[2, 3], op_idx=1, params=p)
+    op.vectorize_on([op_a, op_b], dimensions=[2, 3], op_idx=1, type="params", vars=p)
     op.configure(in_n.find_node("a_files"))
 
     r = op.run(cdo, dry_run=True)
@@ -219,3 +221,47 @@ def test_vectorize_2d():
         "cdo -test -op_a -op_b,2 -op_a -op_b,3 -op_a -op_b,4 tests/data/a/a2.nc",
         "cdo -test -op_a -op_b,100 -op_a -op_b,103 -op_a -op_b,104 tests/data/a/a2.nc",
     ]
+
+
+def test_empty_op():
+    cdo = Cdo()
+    files = ["a1.nc", "a2.nc"]
+    in_n = Node("root", "tests/data")
+    in_n.add_child(Node("a_files", "a", files=files))
+
+    root = Operator()
+    op = Operator("test")
+
+    p = ["2", "3", "4", "5"]
+    op.vectorize(p, type="params", dir="vertical", root=root)
+    root.configure(in_n.find_node("a_files"))
+
+    r = root.run(cdo, dry_run=True)
+    assert r == [
+        "cdo -test,2 tests/data/a/a1.nc",
+        "cdo -test,2 tests/data/a/a2.nc",
+        "cdo -test,3 tests/data/a/a1.nc",
+        "cdo -test,3 tests/data/a/a2.nc",
+        "cdo -test,4 tests/data/a/a1.nc",
+        "cdo -test,4 tests/data/a/a2.nc",
+        "cdo -test,5 tests/data/a/a1.nc",
+        "cdo -test,5 tests/data/a/a2.nc",
+    ]
+
+
+def test_find_leaves():
+    cdo = Cdo()
+    files = ["a1.nc", "a2.nc"]
+    in_n = Node("root", "tests/data")
+    in_n.add_child(Node("a_files", "a", files=files))
+
+    root = Operator()
+    op = Operator("test")
+
+    p = ["2", "3", "4", "5"]
+    op.vectorize(p, type="params", dir="vertical", root=root)
+
+    assert len(root.op_next) == len(root.get_leaves())
+
+    for l in root.get_leaves():
+        assert len(l.op_next) == 0

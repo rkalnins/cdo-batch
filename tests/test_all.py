@@ -43,7 +43,8 @@ def test_climate_ops():
         [eca_cfd_op, selyear_op, selname_op],
         dimensions=[2, len(future_years)],
         op_idx=1,
-        params=[future_years, current_years],
+        type="params",
+        vars=[future_years, current_years],
     )
 
     # fork apply to change a parameter for all nodes matching filter

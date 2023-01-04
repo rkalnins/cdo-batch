@@ -35,6 +35,7 @@ class CdoResult:
 
 class Operator:
     op_next: list[Operator]
+    op_prev: list[Operator]
 
     op_name: str
     op_param: str
@@ -50,7 +51,7 @@ class Operator:
 
     def __init__(
         self,
-        name,
+        name="",
         param="",
         out_node=None,
         out_name_vars=None,
@@ -77,6 +78,7 @@ class Operator:
         self.visited = False
 
         self.op_next = []
+        self.op_prev = []
         self.cdo_cmds = []
 
         if out_name_vars is None:
@@ -88,6 +90,41 @@ class Operator:
             self.out_name_format = "{input_basename}.nc"
         else:
             self.out_name_format = out_name_format
+
+    def vectorize(self, vars, dir="horizontal", **kwargs):
+        """
+        Vectorize this node, requires that parent node exists
+        """
+
+        ops = [copy.deepcopy(self) for _ in range(len(vars) - 1)]
+        ops.insert(0, self)
+
+        if kwargs["type"] == "ops":
+            self.modify_op([ops], "op_name", vars)
+        elif kwargs["type"] == "params":
+            self.modify_op([ops], "op_param", vars)
+        elif kwargs["type"] == "inputs":
+            self.modify_op([ops], "op_input_file", vars)
+        else:
+            print("Unknown var")
+
+        if dir == "horizontal":
+            self.extend(ops[1:])
+        elif dir == "vertical":
+            for o in ops:
+                kwargs["root"].append(o)
+        else:
+            print("Unknown direction")
+
+    def modify_op(self, ops, prop_name, vars, dim0=1):
+        if dim0 == 1:
+            vars2d = [vars]
+        else:
+            vars2d = vars
+
+        for i in range(len(vars2d)):
+            for j in range(len(vars2d[0])):
+                setattr(ops[i][j], prop_name, vars2d[i][j])
 
     def vectorize_on(self, series: list[Operator], **kwargs):
         """
@@ -129,23 +166,15 @@ class Operator:
             # references to each operator that needs a variable updated
             ops_to_modify.append(variable_ops)
 
-        def modify(ops, prop_name, vars, dim0):
-            if dim0 == 1:
-                vars2d = [vars]
-            else:
-                vars2d = vars
-
-            for i in range(len(vars2d)):
-                for j in range(len(vars2d[0])):
-                    setattr(ops[i][j], prop_name, vars2d[i][j])
-
         # choose correct member variable to update
-        if "ops" in kwargs:
-            modify(ops_to_modify, "op_name", kwargs["ops"], dimensions[0])
-        elif "params" in kwargs:
-            modify(ops_to_modify, "op_param", kwargs["params"], dimensions[0])
-        elif "inputs" in kwargs:
-            modify(ops_to_modify, "op_input_file", kwargs["inputs"], dimensions[0])
+        if kwargs["type"] == "ops":
+            self.modify_op(ops_to_modify, "op_name", kwargs["vars"], dimensions[0])
+        elif kwargs["type"] == "params":
+            self.modify_op(ops_to_modify, "op_param", kwargs["vars"], dimensions[0])
+        elif kwargs["type"] == "inputs":
+            self.modify_op(
+                ops_to_modify, "op_input_file", kwargs["vars"], dimensions[0]
+            )
         else:
             print("Unknown var")
 
@@ -183,7 +212,7 @@ class Operator:
         else:
             print("Unknown var")
 
-    def vector_apply(self, filter_op: str, var_name: str, var: Any):
+    def vector_apply(self, filter_op: str, var_name: str, var: Any, type="all"):
         """
         Change a variable of name var_name for each operator of type filter_op to var
 
@@ -192,14 +221,32 @@ class Operator:
         :param var Any: variable to insert
         """
 
-        # apply single variable to all
-        for o in self.op_next:
-            o.vector_apply(filter_op, var_name, var)
+        if type == "all":
+            if self.op_name == filter_op:
+                setattr(self, var_name, var)
+                print(self, var_name, var)
 
-        if self.op_name == filter_op:
-            setattr(self, var_name, var)
+            # apply single variable to all
+            for o in self.op_next:
+                o.vector_apply(filter_op, var_name, var, type)
+        elif type == "horizontal":
+            if self.op_name == filter_op:
+                setattr(self, var_name, var)
 
-    def fork_apply(self, filter_op: str, var_name: str, vars: list[Any]):
+            if len(self.op_next) == 0:
+                return
+
+            self.op_next[0].vector_apply(filter_op, var_name, var, type)
+
+        elif type == "vertical":
+            for o in self.op_next:
+                if o.op_name == filter_op:
+                    setattr(o, var_name, var)
+
+        else:
+            print("Unknown type")
+
+    def fork_apply(self, filter_op: str, var_name: str, vars: list[Any], type="all"):
         """
         Apply each variable in vars to each fork, respectively using vector_apply
 
@@ -222,7 +269,24 @@ class Operator:
 
         # apply different var for each fork
         for i in range(len(self.op_next)):
-            self.op_next[i].vector_apply(filter_op, var_name, apply_inputs[i])
+            self.op_next[i].vector_apply(filter_op, var_name, apply_inputs[i], type)
+
+    def set_prev_op(self, p):
+        self.op_prev.append(p)
+
+    def get_leaves(self):
+        def recurse_find(op, ends):
+            if len(op.op_next) == 0:
+                ends.add(op)
+                return ends
+
+            for o in op.op_next:
+                ends.update(recurse_find(o, ends))
+
+            return ends
+
+        ends = set()
+        return list(recurse_find(self, ends))
 
     def append(self, op: Operator):
         """
@@ -230,7 +294,14 @@ class Operator:
 
         :param op Operator: the operator to add
         """
+        op.set_prev_op(self)
         self.op_next.append(op)
+
+    def extend_leaves(self, ops: list[Operator]):
+        leaves = self.get_leaves()
+
+        for l in leaves:
+            l.extend(copy.deepcopy(ops))
 
     def extend(self, ops: list[Operator]):
         """
@@ -242,9 +313,11 @@ class Operator:
         """
 
         self.append(ops[0])
+        ops[0].set_prev_op(self)
         for i in range(len(ops) - 1):
             # chain each operator to the next
             ops[i].append(ops[i + 1])
+            ops[i + 1].set_prev_op(ops[i])
 
     def get_output_name(self, input_path: str) -> str:
         """
@@ -370,27 +443,39 @@ class Operator:
         as input
         """
         # depth first search to build all cdo commands
+
+        root_ops = []
+
         self.cdo_cmds = []
 
-        for i in range(len(node.files)):
-            input_file = node.files[i]
-            input_path = os.path.join(node.get_root_path(), input_file)
-            op_path = []
-            working_set = []
+        if len(self.op_prev) == 0:
+            if self.op_name == "":
+                root_ops.extend(self.op_next)
+            else:
+                root_ops.append(self)
+        else:
+            root_ops.extend(self.op_prev)
 
-            # find all paths through operator graph
-            op_path = self.get_commands(op_path, working_set)
+        for o in root_ops:
+            for i in range(len(node.files)):
+                input_file = node.files[i]
+                input_path = os.path.join(node.get_root_path(), input_file)
+                op_path = []
+                working_set = []
 
-            if route_mode == "default":
-                # translate op path, node, input file into cdo arguments
-                for p in op_path:
-                    # create a command for each path for each input file
-                    cmd = self.create_command(input_path, p, use_input_file)
+                # find all paths through operator graph
+                op_path = o.get_commands(op_path, working_set)
+
+                if route_mode == "default":
+                    # translate op path, node, input file into cdo arguments
+                    for p in op_path:
+                        # create a command for each path for each input file
+                        cmd = o.create_command(input_path, p, use_input_file)
+                        self.cdo_cmds.append(cmd)
+                elif route_mode == "file_fork_mapped":
+                    # map each input file to a different path
+                    cmd = o.create_command(input_path, op_path[i], use_input_file)
                     self.cdo_cmds.append(cmd)
-            elif route_mode == "file_fork_mapped":
-                # map each input file to a different path
-                cmd = self.create_command(input_path, op_path[i], use_input_file)
-                self.cdo_cmds.append(cmd)
 
     def make_cdo_cmd_str(self, c: dict) -> str:
         """

@@ -2,49 +2,42 @@ from cdo import Cdo
 from cdobatch.node import Node
 from cdobatch.operator import Operator
 
-root = Node("root", "CMIP6_data/tas/MODELS_filtered/ssp585")
-root.find_files()
+files = ["M1.nc", "M2.nc"]
+root = Node("root", "CMIP6_data/tas/MODELS_filtered/ssp585", files=files)
 
-# split tree recursively twice using filesystem paths
-input_nodes = root.path_split(
-    [
-        "seasonal_avg/Projections",
-        "seasonal_avg/Historical",
-        "year_avg/Projections",
-        "year_avg/Historical",
-    ]
-)
+out_root = Node("out_root", "output")
+out_seasonal = Node("seasonal", "seasonal")
+out_yearly = Node("yearly", "yearly")
 
-output_node = Node("outputs", "iceshelves")
-root.add_child(output_node)
+out_root.add_child(out_seasonal)
+out_root.add_child(out_yearly)
 
-shelves = []  # read shelf named
 
 cdo = Cdo()
 
-for n in input_nodes:
-    for shelf in shelves:
+# yearly
+yearmean = Operator("yearmean")
 
-        # create output path, skip file name
-        path_parts = n.get_root_path().split("/")[-1:]
+names = ["ross", "tmp"]
+coords = ["1.0,1.0,1.0,1.0", "4.0,12,1,0"]
 
-        # rearrange file path to match desired output
-        # flip Historical and year_avg/seasonal_avg path parts
-        path = f"iceshelves/{shelf['name']}/{path_parts[1]}/{path_parts[0]}"
+sellonlat_root = Operator()
+sellonlat_seas_op = Operator("sellonlatbox", out_node=out_root)
+sellonlat_seas_op.vectorize(coords, dir="vertical", type="params", root=sellonlat_root)
 
-        # create output node with desired output path
-        name = f"{shelf['name']}_{path_parts[1]}_{path_parts[0]}"
-        shelf_output_node = Node(name, path)
-        output_node.add_child(shelf_output_node)
+sellonlat_root.extend_leaves([Operator("seasmean"), Operator("select", "season=DJF")])
 
-        # each command maps to an output node
-        # built-in `input_basename` is name of input file
-        op = Operator(
-            "sellonlatbox",
-            shelf["coords"],
-            out_node=shelf_output_node,
-            out_name_format="{input_basename}" + f".{shelf['name']}.nc",
-        )
+outut_formats = []
 
-        op.configure(n)
-        op.run(cdo)
+for n in names:
+    outut_formats.append("{input_basename}_" + n + ".nc")
+
+sellonlat_root.fork_apply(
+    "sellonlatbox", var_name="out_name_format", vars=outut_formats
+)
+
+sellonlat_root.configure(root)
+res = sellonlat_root.run(cdo, dry_run=True)
+
+for r in res:
+    print(r)
