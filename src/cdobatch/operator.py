@@ -433,8 +433,9 @@ class Operator:
         """
         Creates all output directories necessary
         """
-        # TODO: create all output files
-        pass
+        for c in self.cdo_cmds:
+            if c["output"] != "":
+                os.makedirs(os.path.dirname(c["output"]), exist_ok=True) 
 
     def run_real(self, cdo: Cdo) -> list[CdoResult]:
         """
@@ -503,6 +504,7 @@ class Operator:
 
         self.preprocess()
         if create_outputs_only:
+            # don't do anything else
             return
 
         return self.run_real(cdo)
