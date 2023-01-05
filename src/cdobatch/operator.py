@@ -5,6 +5,7 @@ from contextlib import redirect_stdout, redirect_stderr
 import copy
 import io
 import os
+import numpy as np
 from typing import Any
 
 from .node import Node
@@ -100,11 +101,11 @@ class Operator:
         ops.insert(0, self)
 
         if kwargs["type"] == "ops":
-            self.modify_op([ops], "op_name", vars)
+            self.modify_op(ops, "op_name", vars)
         elif kwargs["type"] == "params":
-            self.modify_op([ops], "op_param", vars)
+            self.modify_op(ops, "op_param", vars)
         elif kwargs["type"] == "inputs":
-            self.modify_op([ops], "op_input_file", vars)
+            self.modify_op(ops, "op_input_file", vars)
         else:
             print("Unknown var")
 
@@ -116,15 +117,15 @@ class Operator:
         else:
             print("Unknown direction")
 
-    def modify_op(self, ops, prop_name, vars, dim0=1):
-        if dim0 == 1:
-            vars2d = [vars]
-        else:
-            vars2d = vars
+    def modify_op(self, ops, prop_name, vars):
 
-        for i in range(len(vars2d)):
-            for j in range(len(vars2d[0])):
-                setattr(ops[i][j], prop_name, vars2d[i][j])
+        if not isinstance(ops[0], list):
+            for i in range(len(ops)):
+                setattr(ops[i], prop_name, vars[i])
+        else:
+            for i in range(len(ops)):
+                for j in range(len(ops[0])):
+                    setattr(ops[i][j], prop_name, vars[i][j])
 
     def vectorize_on(self, series: list[Operator], **kwargs):
         """
@@ -143,40 +144,67 @@ class Operator:
         :param params list: list of params to replace in chosen operators
         :param inputs list: list of input files to replace in chosen operators
         """
+        op_idx = kwargs["op_idx"]
+        if not isinstance(kwargs["op_idx"], list):
+            op_idx = [op_idx]
+
+        is_parameterized = (len(op_idx) > 1)
+        param_count = len(op_idx)
+
+        types = kwargs["type"]
+        if not isinstance(kwargs["type"], list):
+            types = [types]
+
+        if is_parameterized:
+            vars = kwargs["vars"]
+        else:
+            if isinstance(kwargs["vars"][0], list):
+                vars = [np.array(kwargs["vars"]).flatten().tolist()]
+            else:
+                vars = [kwargs["vars"]]
+
+
         # repeat the given series on each var modifying op
         # append the craeted series to this op
         dimensions = [1]
         if "dimensions" in kwargs:
             dimensions = kwargs["dimensions"]
 
-        ops_to_modify = []
+        ops_to_modify = [[] for _ in range(param_count)]
 
         for _ in range(dimensions[0]):
             row = []
-            variable_ops = []
             for _ in range(dimensions[1]):
                 # need deepcopies so each operator in graph is unique
                 l = [copy.deepcopy(o) for o in series]
-                variable_ops.append(l[kwargs["op_idx"]])
-                # create the row
+
+                # choose each operator from the new set
+                # keep the same operators together in the same sublists
+                for i in range(param_count):
+                    ops_to_modify[i].append(l[op_idx[i]])
+
+                    # create the row
                 row.extend(l)
 
             self.extend(row)
-
-            # references to each operator that needs a variable updated
-            ops_to_modify.append(variable_ops)
+            
 
         # choose correct member variable to update
-        if kwargs["type"] == "ops":
-            self.modify_op(ops_to_modify, "op_name", kwargs["vars"], dimensions[0])
-        elif kwargs["type"] == "params":
-            self.modify_op(ops_to_modify, "op_param", kwargs["vars"], dimensions[0])
-        elif kwargs["type"] == "inputs":
-            self.modify_op(
-                ops_to_modify, "op_input_file", kwargs["vars"], dimensions[0]
-            )
-        else:
-            print("Unknown var")
+        for i in range(len(types)):
+            t = types[i]
+            if t == "ops":
+                self.modify_op(ops_to_modify[i], "op_name", vars[i])
+            elif t == "params":
+                self.modify_op(ops_to_modify[i], "op_param", vars[i])
+            elif t == "inputs":
+                self.modify_op(
+                    ops_to_modify[i], "op_input_file", vars[i])
+            elif t == "out_format":
+                self.modify_op(
+                    ops_to_modify[i], "out_name_format", vars[i]
+                )
+            else:
+                print("Unknown var")
 
     def permute_on(self, op: Operator, **kwargs):
         # TODO
@@ -377,7 +405,8 @@ class Operator:
         return op_paths
 
     def print_graph(self):
-        print(self, self.op_name, self.op_param, self.op_input_file, self.op_next)
+        print(self, self.op_name, self.op_param, self.op_input_file,
+              self.op_next, self.out_name_format)
 
         for o in self.op_next:
             o.print_graph()
@@ -398,6 +427,7 @@ class Operator:
         :rtype: dict
         """
         cmd = {}
+
         cmd["func_name"] = self.op_name
         cmd["param"] = self.op_param
         cmd["output"] = self.get_output_name(input_path)
@@ -406,6 +436,9 @@ class Operator:
 
         # skip first item in chain
         for o in p[1:]:
+            if o.op_name == "":
+                continue
+
             needs_space = True
             # build piped input
             cmd["input"] += f"-{o.op_name}"
