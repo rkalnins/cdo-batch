@@ -151,7 +151,7 @@ class Operator:
         if not isinstance(kwargs["op_idx"], list):
             op_idx = [op_idx]
 
-        is_parameterized = (len(op_idx) > 1)
+        is_parameterized = len(op_idx) > 1
         param_count = len(op_idx)
 
         types = kwargs["type"]
@@ -165,7 +165,6 @@ class Operator:
                 vars = [np.array(kwargs["vars"]).flatten().tolist()]
             else:
                 vars = [kwargs["vars"]]
-
 
         # repeat the given series on each var modifying op
         # append the craeted series to this op
@@ -190,7 +189,6 @@ class Operator:
                 row.extend(l)
 
             self.extend(row)
-            
 
         # choose correct member variable to update
         for i in range(len(types)):
@@ -200,12 +198,9 @@ class Operator:
             elif t == "params":
                 self.modify_op(ops_to_modify[i], "op_param", vars[i])
             elif t == "inputs":
-                self.modify_op(
-                    ops_to_modify[i], "op_input_file", vars[i])
+                self.modify_op(ops_to_modify[i], "op_input_file", vars[i])
             elif t == "out_format":
-                self.modify_op(
-                    ops_to_modify[i], "out_name_format", vars[i]
-                )
+                self.modify_op(ops_to_modify[i], "out_name_format", vars[i])
             else:
                 print("Unknown var")
 
@@ -408,8 +403,15 @@ class Operator:
         return op_paths
 
     def print_graph(self):
-        print(self, self.op_name, self.op_param, self.op_input_file,
-              self.op_next, self.out_name_format, self.op_out_node)
+        print(
+            self,
+            self.op_name,
+            self.op_param,
+            self.op_input_file,
+            self.op_next,
+            self.out_name_format,
+            self.op_out_node,
+        )
 
         for o in self.op_next:
             o.print_graph()
@@ -524,7 +526,7 @@ class Operator:
         cmd_str = "cdo"
         if c["options"] != "":
             cmd_str += f' {c["options"]}'
-        
+
         if c["func_name"] != "":
             cmd_str += f' -{c["func_name"]}'
 

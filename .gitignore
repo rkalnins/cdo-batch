@@ -10,6 +10,9 @@ build/lib/cdobatch/*
 
 tests/output
 
+tas
+iceshelves/
+
 edgar-download/edgar_urls
 edgar-download/downloads
 edgar-download/nc_files
