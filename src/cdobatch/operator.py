@@ -406,7 +406,7 @@ class Operator:
 
     def print_graph(self):
         print(self, self.op_name, self.op_param, self.op_input_file,
-              self.op_next, self.out_name_format)
+              self.op_next, self.out_name_format, self.op_out_node)
 
         for o in self.op_next:
             o.print_graph()
@@ -430,6 +430,7 @@ class Operator:
 
         cmd["func_name"] = self.op_name
         cmd["param"] = self.op_param
+
         cmd["output"] = self.get_output_name(input_path)
         cmd["options"] = self.op_options
         cmd["input"] = ""
@@ -481,13 +482,12 @@ class Operator:
 
         self.cdo_cmds = []
 
-        if len(self.op_prev) == 0:
-            if self.op_name == "":
-                root_ops.extend(self.op_next)
-            else:
-                root_ops.append(self)
+        if self.op_name == "":
+            for o in self.op_next:
+                o.op_out_node = self.op_out_node
+                root_ops.append(o)
         else:
-            root_ops.extend(self.op_prev)
+            root_ops.append(self)
 
         for o in root_ops:
             for i in range(len(node.files)):
@@ -521,8 +521,9 @@ class Operator:
         cmd_str = "cdo"
         if c["options"] != "":
             cmd_str += f' {c["options"]}'
-
-        cmd_str += f' -{c["func_name"]}'
+        
+        if c["func_name"] != "":
+            cmd_str += f' -{c["func_name"]}'
 
         if c["param"] != "":
             cmd_str += f',{c["param"]}'

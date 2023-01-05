@@ -41,7 +41,6 @@ year_root_op.vectorize_on(
     type=["out_format", "params"],
     vars=[output_formats, coords],
 )
-year_root_op.print_graph()
 print("----seasonal")
 seas_root_op.vectorize_on(
     [seasmean, select, sellonlat],
