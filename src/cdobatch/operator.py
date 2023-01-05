@@ -20,7 +20,10 @@ class CdoResult:
 
     errmsg: str
 
-    def __init__(self, result, error, errout, stdout):
+    op: Any
+
+    def __init__(self, op, result, error, errout, stdout):
+        self.op = op
         self.result = result
         self.error = error
 
@@ -595,9 +598,9 @@ class Operator:
                     r = cdo_func(*args, **kwargs)
 
             except CDOException as e:
-                results.append(CdoResult(None, e, err, out))
+                results.append(CdoResult(self, None, e, err, out))
             else:
-                results.append(CdoResult(r, None, err, out))
+                results.append(CdoResult(self, r, None, err, out))
 
             # update the output node with any new output files
             if self.op_out_node is not None:
