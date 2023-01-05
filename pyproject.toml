@@ -11,6 +11,9 @@ requires-python = ">=3.7"
 
 dependencies = [
     "cdo>=1.5.7",
+    "xarray>=2022.0.0",
+    "scipy>=1.5",
+    "numpy>=1.20.0"
 ]
 
 [project.scripts]
