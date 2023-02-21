@@ -4,62 +4,69 @@ from cdobatch.node import Node
 from cdobatch.operator import Operator
 
 
-def iceshelf_iterate(shelves, time_period):
-    root = Node(
-        "root", os.path.join("tas/MODELS_filtered/ssp585/month_avg", time_period)
-    )
+def log_errors(results):
+
+    failed_shelves = set()
+
+    for s in results:
+        if isinstance(s, str):
+            print(s)
+
+        elif s.error is not None:
+            print(s.error, s.stdout)
+
+            # collect failed names
+            for name in shelves["names"]:
+                if name in s.stdout or "(returncode:1)" in s.stdout:
+                    failed_shelves.add(name)
+
+    if len(failed_shelves) > 0:
+        print("failed shelves")
+        print(list(failed_shelves))
+
+
+def iceshelf_iterate(shelves):
+    root = Node("root", "tas/MODELS_filtered/ssp585/month_avg")
     root.find_files()
 
-    out_root = Node("out_root", os.path.join("iceshelves", time_period))
-    out_seasonal = Node("seasonal", "seasonal")
-    out_yearly = Node("yearly", "yearly")
+    out_root = Node("means", "means")
+    out_shelves = Node("shelves", "shelves")
+    out_seasonal = Node("mean_seasonal", "seasonal")
+    out_yearly = Node("mean_yearly", "yearly")
 
     out_root.add_child(out_seasonal)
     out_root.add_child(out_yearly)
 
     cdo = Cdo()
 
-    yearmean = Operator("yearmean")
-    seasmean = Operator("seasmean")
-    select = Operator("select", "season=DJF")
+    sel_root = Operator(out_node=out_shelves)
     sellonlat = Operator("sellonlatbox")
 
-    year_root_op = Operator(out_node=out_yearly)
-    seas_root_op = Operator(out_node=out_seasonal)
+    sellonlat.vectorize(shelves["coords"], type="params", dir="vertical", root=sel_root)
 
-    output_formats = []
+    shelf_out_names = []
     for n in shelves["names"]:
-        output_formats.append(n + "_{input_basename}.nc")
+        shelf_out_names.append(n + "_{input_basename}.nc")
 
-    year_root_op.vectorize_on(
-        [yearmean, sellonlat],
-        dimensions=[len(shelves["names"]), 1],
-        op_idx=[0, 1],
-        type=["out_format", "params"],
-        vars=[output_formats, shelves["coords"]],
-    )
-    seas_root_op.vectorize_on(
-        [seasmean, select, sellonlat],
-        dimensions=[len(shelves["names"]), 1],
-        op_idx=[0, 2],
-        type=["out_format", "params"],
-        vars=[output_formats, shelves["coords"]],
-    )
+    sel_root.fork_apply("sellonlatbox", "out_name_format", shelf_out_names)
 
-    year_root_op.configure(root)
-    seas_root_op.configure(root)
-    res_yearly = year_root_op.run(cdo)
-    res_seas = seas_root_op.run(cdo)
+    sel_root.configure(root)
+    out = sel_root.run(cdo)
 
-    for r in res_yearly:
-        print(r)
-    for r in res_seas:
-        print(r)
+    log_errors(out)
 
-    # either should be good
-    # shouldn't need both yearly and monthly, just looking for correctly
-    # sized ice shelves
-    return res_yearly
+    yearmean = Operator("yearmean", out_node=out_root)
+    seasmean = Operator("seasmean", out_node=out_root)
+    select = Operator("select", "season=DJF")
+    seasmean.extend([select])
+
+    yearmean.configure(out_shelves)
+    seasmean.configure(out_shelves)
+    res_yearly = yearmean.run(cdo, dry_run=True)
+    res_seas = seasmean.run(cdo, dry_run=True)
+
+    log_errors(res_yearly)
+    log_errors(res_seas)
 
 
 def get_shelf_data(lines):
@@ -75,20 +82,4 @@ def get_shelf_data(lines):
 
 with open("examples/shelves.csv", "r") as in_file:
     shelves = get_shelf_data(in_file.readlines())
-    successes_hist = iceshelf_iterate(shelves, "Historical")
-
-    failed_shelves = set()
-
-    for s in successes_hist:
-        if s.error is not None:
-            print(s.error, s.stdout)
-
-            # collect failed names
-            for name in shelves["names"]:
-                if name in s.stdout or "(returncode:1)" in s.stdout:
-                    failed_shelves.add(name)
-
-    print("failed shelves (historical)")
-    print(list(failed_shelves))
-
-    successes_proj = iceshelf_iterate(shelves, "Projections")
+    iceshelf_iterate(shelves)

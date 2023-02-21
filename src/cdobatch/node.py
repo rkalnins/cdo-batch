@@ -96,7 +96,7 @@ class Node:
         # get all files
         for root, _, files in os.walk(self.get_root_path()):
             for file in files:
-                if file.endswith(".nc"):
+                if file.endswith(".nc") and file not in self.files:
                     self.files.append(
                         os.path.relpath(os.path.join(root, file), self.path)
                     )

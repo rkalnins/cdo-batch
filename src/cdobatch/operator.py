@@ -250,7 +250,6 @@ class Operator:
         if type == "all":
             if self.op_name == filter_op:
                 setattr(self, var_name, var)
-                print(self, var_name, var)
 
             # apply single variable to all
             for o in self.op_next:
@@ -270,7 +269,7 @@ class Operator:
                     setattr(o, var_name, var)
 
         else:
-            print("Unknown type")
+            print("Unknown type", type)
 
     def fork_apply(self, filter_op: str, var_name: str, vars: list[Any], type="all"):
         """
